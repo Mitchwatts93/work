@@ -26,6 +26,8 @@ SCORES_PATH = os.path.join(DATA_DIR, 'scores')
 VAL_SCORES_DICT = os.path.join(SCORES_PATH, "model_val_scores.json")
 TEST_SCORES_DICT = os.path.join(SCORES_PATH, "model_test_scores.json")
 
+PLOTS_PATH = os.path.join(DATA_DIR, "plots")
+
 class InputError(Exception):
     pass
 
