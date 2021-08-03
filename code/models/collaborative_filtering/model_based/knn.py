@@ -1,6 +1,6 @@
 from surprise import Dataset
 from surprise import Reader
-from surprise import SVD
+from surprise.prediction_algorithms.knns import KNNBasic
 
 import numpy as np
 import pandas as pd
@@ -18,13 +18,13 @@ from models import common_funcs
 
 ################################################################################
 
-def get_svd_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
+def get_KNNBasic_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
     # build surprise datasets
     train_data = Dataset.load_from_df(train_df, reader=Reader(rating_scale=(0,1)))
     val_data = Dataset.load_from_df(test_df, reader=Reader(rating_scale=(0,1)))
 
     # fit model
-    algo = SVD()
+    algo = KNNBasic()
     algo.fit(train_data.build_full_trainset())
 
     # make predictions
@@ -40,10 +40,10 @@ def get_svd_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
 ################################################################################
 
 def main():
-    model_name = "SVD"
+    model_name = "KNNBasic"
     dataset_being_evaluated = "val"
 
-    predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_svd_probs, dataset_being_evaluated=dataset_being_evaluated)
+    predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_KNNBasic_probs, dataset_being_evaluated=dataset_being_evaluated)
     labels = common_funcs.get_labels(dataset_to_fetch=dataset_being_evaluated)
     scores = common_funcs.get_scores(predictions, labels, model_name=model_name, dataset_being_evaluated=dataset_being_evaluated)
     
