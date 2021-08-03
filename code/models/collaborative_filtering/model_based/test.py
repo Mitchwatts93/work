@@ -1,7 +1,7 @@
 from surprise import Dataset
 from surprise import Reader
-
-
+from surprise import SVD
+from surprise.model_selection import cross_validate
 
 import os, sys
 
@@ -17,13 +17,25 @@ train_df, val_df, test_df = get_split_labels_training_df()
 
 data = Dataset.load_from_df(train_df, reader=Reader(rating_scale=(0,1)))
 
-
-from surprise import SVD
-
 algo = SVD()
 
-from surprise.model_selection import cross_validate
+#cross_validate(algo, data, measures=['RMSE', 'MAE'], cv=3, verbose=True)
 
-cross_validate(algo, data, measures=['RMSE', 'MAE'], cv=3, verbose=True)
-
+algo.fit(data.build_full_trainset())
 breakpoint()
+
+################################################################################
+
+
+
+################################################################################
+
+
+################################################################################
+
+def main():
+    pass
+
+################################################################################
+if __name__ == "__main__":
+    main()
