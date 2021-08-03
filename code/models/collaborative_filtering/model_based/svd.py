@@ -1,4 +1,6 @@
-import json
+from surprise import Dataset
+from surprise import Reader
+from surprise import SVD
 
 import numpy as np
 import pandas as pd
@@ -6,30 +8,40 @@ import pandas as pd
 import os, sys
 
 CDIR = os.path.dirname(os.path.abspath(__file__))
-PPDIR = os.path.dirname(os.path.dirname(CDIR))
+PPPDIR = os.path.dirname(os.path.dirname(os.path.dirname(CDIR)))
 
-sys.path.append(PPDIR) # I couldn't be bothered with making it a package, 
+sys.path.append(PPPDIR) # I couldn't be bothered with making it a package, 
 # so I'm doing this to make sure imports work when run from anywhere
 
 from misc import constants
-
 from models import common_funcs
-
 
 ################################################################################
 
-def get_purchase_probabilities(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
-    probs = np.random.rand(len(test_df))
+def get_svd_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
+    # build surprise datasets
+    train_data = Dataset.load_from_df(train_df, reader=Reader(rating_scale=(0,1)))
+    val_data = Dataset.load_from_df(test_df, reader=Reader(rating_scale=(0,1)))
+
+    # fit model
+    algo = SVD()
+    algo.fit(train_data.build_full_trainset())
+
+    # make predictions
+    breakpoint()
+    probs = algo.test(val_data.build_full_trainset()) # TODO this doesn't work?
+
+    # save predictions in df
     test_df['purchased'] = probs # NOTE: same name column as labels
     return test_df
 
 ################################################################################
 
 def main():
-    model_name = "random_baseline"
+    model_name = "SVD"
     dataset_being_evaluated = "val"
 
-    predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_purchase_probabilities, dataset_being_evaluated=dataset_being_evaluated)
+    predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_svd_probs, dataset_being_evaluated=dataset_being_evaluated)
     labels = common_funcs.get_labels(dataset_to_fetch=dataset_being_evaluated)
     scores = common_funcs.get_scores(predictions, labels, model_name=model_name, dataset_being_evaluated=dataset_being_evaluated)
     

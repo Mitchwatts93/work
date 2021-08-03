@@ -71,8 +71,8 @@ def fill_missing_popularities(product_ids, normalised_popularities, fill_method=
 
 ################################################################################
 
-def get_purchase_probabilities(inputs_df: pd.DataFrame, dataset_being_evaluated: str = "val") -> np.ndarray:
-    product_ids = inputs_df["productId"]
+def get_purchase_probabilities(train_df: pd.DataFrame, test_df: pd.DataFrame, dataset_being_evaluated: str = "val") -> np.ndarray:
+    product_ids = test_df["productId"]
     normalised_popularities = get_normalised_popularities(dataset_being_evaluated=dataset_being_evaluated)
     filled_normalised_popularities = fill_missing_popularities(
         product_ids, normalised_popularities, fill_method="mean",
@@ -82,14 +82,13 @@ def get_purchase_probabilities(inputs_df: pd.DataFrame, dataset_being_evaluated:
 
     product_popularity = filled_normalised_popularities[product_ids]
 
-    inputs_df['purchased'] = product_popularity.values # NOTE: same name column as labels
+    test_df['purchased'] = product_popularity.values # NOTE: same name column as labels
 
-    return inputs_df
+    return test_df
 
 ################################################################################
 
-
-if __name__ == "__main__":
+def main():
     model_name = "normalised_popularity_baseline"
     dataset_being_evaluated = "val"
     predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_purchase_probabilities, dataset_being_evaluated=dataset_being_evaluated, additional_kwargs_for_model={"dataset_being_evaluated":dataset_being_evaluated})
@@ -99,3 +98,10 @@ if __name__ == "__main__":
         common_funcs.add_scores_to_master_dict(scores, model_name=model_name, model_dict_path=constants.VAL_SCORES_DICT)
     elif dataset_being_evaluated == "test":
         common_funcs.add_scores_to_master_dict(scores, model_name=model_name, model_dict_path=constants.TEST_SCORES_DICT)
+
+################################################################################
+
+
+if __name__ == "__main__":
+    main()
+    

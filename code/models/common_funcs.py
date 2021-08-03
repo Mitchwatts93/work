@@ -28,13 +28,15 @@ def get_labels(dataset_to_fetch="val"):
 
 
 def generate_and_cache_preds(model_name, model_fetching_func, dataset_being_evaluated="val", additional_kwargs_for_model={}):
-    dataset = get_labels(dataset_to_fetch=dataset_being_evaluated)
+    train_dataset = get_labels(dataset_to_fetch="train")
+    test_dataset = get_labels(dataset_to_fetch=dataset_being_evaluated)
 
     cache_path = os.path.join(constants.PREDICTIONS_PATH, f"{model_name}_{dataset_being_evaluated}.gzip")
     predictions = load_or_make_wrapper(
         maker_func=model_fetching_func, 
         filepath=cache_path, cache=True, 
-        inputs_df=dataset,
+        train_df=train_dataset,
+        test_df=test_dataset,
         **additional_kwargs_for_model
     )
     return predictions
