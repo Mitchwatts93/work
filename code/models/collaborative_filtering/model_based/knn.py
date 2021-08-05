@@ -20,7 +20,8 @@ from models import common_funcs
 
 def get_KNNBasic_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
     # build surprise datasets
-    train_data = Dataset.load_from_df(train_df, reader=Reader(rating_scale=(0,1)))
+    prop_train_use = 0.5 # ram issues
+    train_data = Dataset.load_from_df(train_df.iloc[:prop_train_use], reader=Reader(rating_scale=(0,1)))
     val_data = Dataset.load_from_df(test_df, reader=Reader(rating_scale=(0,1)))
 
     # fit model
