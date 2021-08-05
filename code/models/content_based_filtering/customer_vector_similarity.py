@@ -107,7 +107,7 @@ def get_vector_content_sim_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) 
 ################################################################################
 
 def main():
-    model_name = "vector_content_sim"
+    model_name = "vector_content_sim_customer"
     dataset_being_evaluated = "val"
 
     predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_vector_content_sim_probs, dataset_being_evaluated=dataset_being_evaluated)
