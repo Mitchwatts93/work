@@ -35,13 +35,14 @@ def encode_customer():
             "ordinalencode", 
             Pipeline([
                 ("impute", SimpleImputer(strategy="median")), # year of birth we impute nans # TODO use knn imputer?
-                #("encoder", OrdinalEncoder())
-                ("onehotencode", OneHotEncoder())
+                ("encoder", OrdinalEncoder())
+                #("onehotencode", OneHotEncoder())
             ]), 
             ["yearOfBirth"])
     ])
 
     encoded_customers = encoder.fit_transform(customer_df)
+    encoded_customers_normed = encoded_customers / np.linalg.norm(encoded_customers, axis=0)
 
     row_lookup = dict(zip(customer_df.customerId, range(len(customer_df)))) # faster for later - rather than use df so we can keep sparse encoded
 
@@ -82,7 +83,7 @@ def get_vector_content_sim_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) 
         customer_vectors = encoded_customers[customer_encoder_rows, :].toarray()
 
         # why are all the similarities so high?
-        
+        #customer_similarities = np.dot(customer_vectors, this_customer_vector.reshape(-1))
         customer_similarities = cosine_similarity(customer_vectors, this_customer_vector)
         #customer_similarities = (np.dot(customer_vectors, this_customer_vector.reshape(-1)) / np.linalg.norm(this_customer_vector)) / np.linalg.norm(customer_vectors, axis=1)
         mean_sim = np.mean(customer_similarities)
