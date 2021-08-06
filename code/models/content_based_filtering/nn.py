@@ -1,20 +1,26 @@
 from tensorflow import keras
 import tensorflow as tf
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class simple_NN(keras.Model):
 
     def __init__(self, encoded_customers, encoded_products):
         super().__init__()
+        self.drop_rate = 0.1
+
         self.encoded_customers = tf.convert_to_tensor(encoded_customers) #encoded_customers
         self.encoded_products = tf.convert_to_tensor(encoded_products)  #encoded_products
 
         self.prod_fc1 = keras.layers.Dense(units=10, activation='relu')
+        self.prod_drop = keras.layers.Dropout(rate=self.drop_rate)
 
         self.cust_fc1 = keras.layers.Dense(units=10, activation='relu')
+        self.cust_drop = keras.layers.Dropout(rate=self.drop_rate)
 
         self.fc2 = keras.layers.Dense(units=10, activation='relu')
+        self.fc2_drop = keras.layers.Dropout(rate=self.drop_rate)
         self.out = keras.layers.Dense(units=1, activation='sigmoid')
 
 
@@ -34,11 +40,14 @@ class simple_NN(keras.Model):
         )
 
         p_hid = self.prod_fc1(product_vec)
+        p_hid = self.prod_drop(p_hid)
         c_hid = self.cust_fc1(customer_vec)
+        c_hid = self.cust_drop(c_hid)
 
         concatted = tf.concat([p_hid, c_hid], axis=-1)
 
         hid2 = self.fc2(concatted)
+        hid2 = self.fc2_drop(hid2)
         out = self.out(hid2)
 
         return out
@@ -57,7 +66,23 @@ sys.path.append(PPDIR) # I couldn't be bothered with making it a package,
 from models.content_based_filtering import product_vector_similarity, customer_vector_similarity
 from misc import constants
 from models import common_funcs
+
 ################################################################################
+
+PLOT_LR = True # set to True to plot lr graph
+
+
+def lr_plotter(model, x_small, y_small):
+    lr_schedule = tf.keras.callbacks.LearningRateScheduler(lambda epoch: 1e-4 * 10**(epoch/3))
+    opt = keras.optimizers.Adam(learning_rate=0.1)
+    model.compile(loss="binary_crossentropy", optimizer=opt)
+    history = model.fit(x=x_small, y=y_small,
+                epochs=12,
+                callbacks=[lr_schedule]
+    )
+    plt.semilogx(history.history['lr'], history.history['loss'])
+    plt.savefig('lr_plot.png')
+    plt.close()
 
 
 def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
@@ -76,24 +101,43 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     train_dataset = tf.data.Dataset.from_tensor_slices((train_df[["productId", "customerId"]].values, train_df.purchased.values)) # TODO: make dataset for +ve and -ve, combine them with weightings
     val_dataset = tf.data.Dataset.from_tensor_slices((val_df[["productId", "customerId"]].values, val_df.purchased.values))
 
-    BATCH_SIZE = 10000 # TODO make larger
+    BATCH_SIZE = 100_000 # TODO make larger
     train_dataset = train_dataset.shuffle(len(train_df) * 10).batch(BATCH_SIZE)
     val_dataset = val_dataset.shuffle(len(val_df) * 10).batch(BATCH_SIZE)
 
     #model = simple_NN(np.array(list(row_lookup_customers.items())), encoded_customers.todense(), np.array(list(row_lookup_products.items())), encoded_products.todense())
     model = simple_NN(encoded_customers.todense(), encoded_products.todense())
     early_stopping = keras.callbacks.EarlyStopping(monitor="val_loss", patience=10, mode="min")
-    learning_rate = 0.001 # TODO
-    model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=learning_rate))
+    
 
-    _history = model.fit(
+    if PLOT_LR:
+        x_small = list(train_dataset.as_numpy_iterator())[0][0]
+        y_small = list(train_dataset.as_numpy_iterator())[0][1]
+        lr_plotter(model, x_small, y_small)
+    learning_rate = 0.3 # NOTE: I found this from doing the lr_plotter above
+
+    breakpoint()
+    model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=learning_rate), metrics=['accuracy'])
+
+    history = model.fit(
         train_dataset, 
         validation_data=val_dataset,
         epochs=100,
         callbacks=[early_stopping],
         shuffle=True,
-        #verbose=1,
     )
+    
+    
+    plt.plot(history.history['loss'], label='train')
+    plt.plot(history.history['val_loss'], label='test')
+    plt.legend()
+    plt.savefig("nn_loss.png")
+    plt.close()
+
+    plt.plot(history.history['accuracy'], label='train')
+    plt.plot(history.history['val_accuracy'], label='train')
+    plt.legend()
+    plt.savefig("nn_acc.png")
     breakpoint()
 
     test_dataset = tf.data.Dataset.from_tensor_slices((train_df[["productId", "customerId"]].values, train_df.purchased.values))
