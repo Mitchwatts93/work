@@ -1,7 +1,3 @@
-from surprise import Dataset
-from surprise import Reader
-from surprise.prediction_algorithms.knns import KNNBasic
-
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -29,9 +25,20 @@ from sklearn.metrics.pairwise import cosine_similarity
 def encode_customer():
     customer_df = data_loading.get_customers_df()
 
+    # add missing customer ids
+    full_ids = np.arange(customer_df.customerId.max())
+    missing_ids = np.setdiff1d(full_ids, customer_df.customerId)
+    missing_vals = np.full(shape=(len(missing_ids), len(customer_df.columns)), fill_value=np.nan)
+    missing_vals[:, 0] = missing_ids
+    missing_ids_df = pd.DataFrame(data=missing_vals, columns=customer_df.columns)
+    customer_df = pd.concat([customer_df, missing_ids_df])
+    customer_df.loc[:, "customerId"] = customer_df.customerId.astype(int)
+
     row_lookup = dict(zip(customer_df.customerId, range(len(customer_df)))) # faster for later - rather than use df so we can keep sparse encoded
 
     customer_df = customer_df[['isFemale', 'country', 'yearOfBirth', 'isPremier']]
+    customer_df.fillna(customer_df.median(), inplace=True)
+
 
     customer_df.loc[:, "isFemale"] = customer_df.isFemale.astype(bool)
     customer_df.loc[:, "isPremier"] = customer_df.isPremier.astype(bool)
