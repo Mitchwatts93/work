@@ -5,22 +5,10 @@ import numpy as np
 
 class simple_NN(keras.Model):
 
-    def __init__(self, encoded_customers, encoded_products):#row_lookup_customers, encoded_customers, row_lookup_products, encoded_products) -> None:
+    def __init__(self, encoded_customers, encoded_products):
         super().__init__()
-        #self.row_lookup_customers = row_lookup_customers
-        self.encoded_customers = encoded_customers
-        #self.row_lookup_products = row_lookup_products
-        self.encoded_products = encoded_products
-
-        #self.row_lookup_customers = tf.nn.embedding_lookup(
-        #    params=encoded_customers,
-        #    ids=np.array(list(row_lookup_customers.keys())),
-        #)
-
-        #self.row_lookup_products = tf.nn.embedding_lookup(
-        #    params=encoded_products,
-        #    ids=np.array(list(row_lookup_products.keys())),
-        #)
+        self.encoded_customers = tf.convert_to_tensor(encoded_customers) #encoded_customers
+        self.encoded_products = tf.convert_to_tensor(encoded_products)  #encoded_products
 
         self.prod_fc1 = keras.layers.Dense(units=10, activation='relu')
 
@@ -33,31 +21,22 @@ class simple_NN(keras.Model):
     def call(self, X):
 
         product_id = X[:, 0]
-        #product_vec = self.row_lookup_products.lookup(product_id)
 
-        #product_inds = tf.nn.embedding_lookup(
-        #    params=self.row_lookup_customers,
-        #    ids=product_id,
-        #)
         product_vec = tf.nn.embedding_lookup(
-            params=self.encoded_customers,
+            params=self.encoded_products,
             ids=product_id,
         )
 
-        
         customer_id = X[:, 1]
-        #customer_vec = self.row_lookup_customers.lookup(customer_id)
         customer_vec = tf.nn.embedding_lookup(
-            params=self.encoded_products,
+            params=self.encoded_customers,
             ids=customer_id,
         )
 
-
-        breakpoint()
         p_hid = self.prod_fc1(product_vec)
         c_hid = self.cust_fc1(customer_vec)
 
-        concatted = tf.concat([p_hid, c_hid])
+        concatted = tf.concat([p_hid, c_hid], axis=-1)
 
         hid2 = self.fc2(concatted)
         out = self.out(hid2)
@@ -65,7 +44,6 @@ class simple_NN(keras.Model):
         return out
 
 
-import numpy as np
 import pandas as pd
 
 import os, sys
@@ -89,8 +67,7 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     train_df = train_df[(train_df.customerId.isin(row_lookup_customers.keys())) & (train_df.productId.isin(row_lookup_products.keys()))]
     test_df = test_df[(test_df.customerId.isin(row_lookup_customers.keys())) & (test_df.productId.isin(row_lookup_products.keys()))]
     
-    breakpoint()
-    train_df.loc[:, "customerId"] = train_df.customerId.map(row_lookup_customers)
+    train_df.loc[:, "customerId"] = train_df.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix
     train_df.loc[:, "productId"] = train_df.productId.map(row_lookup_products)
 
     train_df = train_df.iloc[:int(len(train_df) * 0.8)]
@@ -103,7 +80,6 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     train_dataset = train_dataset.shuffle(len(train_df) * 2).batch(BATCH_SIZE)
     val_dataset = val_dataset.shuffle(len(val_df) * 2).batch(BATCH_SIZE)
 
-    breakpoint()
     #model = simple_NN(np.array(list(row_lookup_customers.items())), encoded_customers.todense(), np.array(list(row_lookup_products.items())), encoded_products.todense())
     model = simple_NN(encoded_customers.todense(), encoded_products.todense())
     early_stopping = keras.callbacks.EarlyStopping(monitor="val_loss", patience=10, mode="min")
@@ -116,6 +92,7 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
         epochs=100,
         callbacks=[early_stopping],
         shuffle=True,
+        #verbose=1,
     )
     breakpoint()
 
