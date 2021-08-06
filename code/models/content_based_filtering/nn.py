@@ -151,8 +151,14 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     plt.savefig("nn_acc.png")
     breakpoint()
 
-    test_dataset = tf.data.Dataset.from_tensor_slices((train_df[["productId", "customerId"]].values, train_df.purchased.values))
-    test_dataset = test_dataset.shuffle(len(val_df) * 2).batch(BATCH_SIZE)
+    test_dataset = tf.data.Dataset.from_tensor_slices((test_df[["productId", "customerId"]].values, test_df.purchased.values))
+    test_dataset = test_dataset.batch(BATCH_SIZE) # no shuffle!
+    predictions = model.predict(test_dataset)
+
+    pos_test_dataset = tf.data.Dataset.from_tensor_slices((test_df[test_df.purchased][["productId", "customerId"]].values, test_df[test_df.purchased].purchased.values))
+    neg_test_dataset = tf.data.Dataset.from_tensor_slices((test_df[~test_df.purchased][["productId", "customerId"]].values, test_df[~test_df.purchased].purchased.values))
+    resampled_test_dataset = tf.data.experimental.sample_from_datasets([pos_test_dataset, neg_test_dataset], weights=[0.5, 0.5])
+    test_dataset = resampled_test_dataset.shuffle(len(test_df) * 2).batch(BATCH_SIZE)
     predictions = model.predict(test_dataset)
 
     breakpoint()
