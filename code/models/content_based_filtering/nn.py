@@ -5,19 +5,22 @@ import numpy as np
 
 class simple_NN(keras.Model):
 
-    def __init__(self, row_lookup_customers, encoded_customers, row_lookup_products, encoded_products) -> None:
+    def __init__(self, encoded_customers, encoded_products):#row_lookup_customers, encoded_customers, row_lookup_products, encoded_products) -> None:
         super().__init__()
+        #self.row_lookup_customers = row_lookup_customers
+        self.encoded_customers = encoded_customers
+        #self.row_lookup_products = row_lookup_products
+        self.encoded_products = encoded_products
 
+        #self.row_lookup_customers = tf.nn.embedding_lookup(
+        #    params=encoded_customers,
+        #    ids=np.array(list(row_lookup_customers.keys())),
+        #)
 
-        self.row_lookup_customers = tf.nn.embedding_lookup(
-            params=encoded_customers,
-            ids=np.array(list(row_lookup_customers.keys())),
-        )
-
-        self.row_lookup_products = tf.nn.embedding_lookup(
-            params=encoded_products,
-            ids=np.array(list(row_lookup_products.keys())),
-        )
+        #self.row_lookup_products = tf.nn.embedding_lookup(
+        #    params=encoded_products,
+        #    ids=np.array(list(row_lookup_products.keys())),
+        #)
 
         self.prod_fc1 = keras.layers.Dense(units=10, activation='relu')
 
@@ -30,11 +33,24 @@ class simple_NN(keras.Model):
     def call(self, X):
 
         product_id = X[:, 0]
-        product_vec = self.row_lookup_products.lookup(product_id)
+        #product_vec = self.row_lookup_products.lookup(product_id)
+
+        #product_inds = tf.nn.embedding_lookup(
+        #    params=self.row_lookup_customers,
+        #    ids=product_id,
+        #)
+        product_vec = tf.nn.embedding_lookup(
+            params=self.encoded_customers,
+            ids=product_id,
+        )
 
         
         customer_id = X[:, 1]
-        customer_vec = self.row_lookup_customers.lookup(customer_id)
+        #customer_vec = self.row_lookup_customers.lookup(customer_id)
+        customer_vec = tf.nn.embedding_lookup(
+            params=self.encoded_products,
+            ids=customer_id,
+        )
 
 
         breakpoint()
@@ -73,8 +89,13 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     train_df = train_df[(train_df.customerId.isin(row_lookup_customers.keys())) & (train_df.productId.isin(row_lookup_products.keys()))]
     test_df = test_df[(test_df.customerId.isin(row_lookup_customers.keys())) & (test_df.productId.isin(row_lookup_products.keys()))]
     
+    breakpoint()
+    train_df.loc[:, "customerId"] = train_df.customerId.map(row_lookup_customers)
+    train_df.loc[:, "productId"] = train_df.productId.map(row_lookup_products)
+
     train_df = train_df.iloc[:int(len(train_df) * 0.8)]
     val_df = train_df.iloc[int(len(train_df) * 0.8):]
+    
     train_dataset = tf.data.Dataset.from_tensor_slices((train_df[["productId", "customerId"]].values, train_df.purchased.values)) # TODO: make dataset for +ve and -ve, combine them with weightings
     val_dataset = tf.data.Dataset.from_tensor_slices((val_df[["productId", "customerId"]].values, val_df.purchased.values))
 
@@ -82,7 +103,9 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     train_dataset = train_dataset.shuffle(len(train_df) * 2).batch(BATCH_SIZE)
     val_dataset = val_dataset.shuffle(len(val_df) * 2).batch(BATCH_SIZE)
 
-    model = simple_NN(row_lookup_customers, encoded_customers.todense(), row_lookup_products, encoded_products.todense())
+    breakpoint()
+    #model = simple_NN(np.array(list(row_lookup_customers.items())), encoded_customers.todense(), np.array(list(row_lookup_products.items())), encoded_products.todense())
+    model = simple_NN(encoded_customers.todense(), encoded_products.todense())
     early_stopping = keras.callbacks.EarlyStopping(monitor="val_loss", patience=10, mode="min")
     learning_rate = 0.001 # TODO
     model.compile(loss=tf.losses.MeanSquaredError(), optimizer=keras.optimizers.Adam(learning_rate=learning_rate))

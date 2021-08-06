@@ -26,13 +26,13 @@ def encode_customer():
     customer_df = data_loading.get_customers_df()
 
     # add missing customer ids
-    full_ids = np.arange(customer_df.customerId.max())
-    missing_ids = np.setdiff1d(full_ids, customer_df.customerId)
-    missing_vals = np.full(shape=(len(missing_ids), len(customer_df.columns)), fill_value=np.nan)
-    missing_vals[:, 0] = missing_ids
-    missing_ids_df = pd.DataFrame(data=missing_vals, columns=customer_df.columns)
-    customer_df = pd.concat([customer_df, missing_ids_df])
-    customer_df.loc[:, "customerId"] = customer_df.customerId.astype(int)
+    #full_ids = np.arange(customer_df.customerId.max())
+    #missing_ids = np.setdiff1d(full_ids, customer_df.customerId)
+    #missing_vals = np.full(shape=(len(missing_ids), len(customer_df.columns)), fill_value=np.nan)
+    #missing_vals[:, 0] = missing_ids
+    #missing_ids_df = pd.DataFrame(data=missing_vals, columns=customer_df.columns)
+    #customer_df = pd.concat([customer_df, missing_ids_df])
+    #customer_df.loc[:, "customerId"] = customer_df.customerId.astype(int)
 
     row_lookup = dict(zip(customer_df.customerId, range(len(customer_df)))) # faster for later - rather than use df so we can keep sparse encoded
 

@@ -28,13 +28,13 @@ def encode_products():
     product_df = data_loading.get_products_df()
 
     # add missing customer ids
-    full_ids = np.arange(product_df.productId.max())
-    missing_ids = np.setdiff1d(full_ids, product_df.productId)
-    missing_vals = np.full(shape=(len(missing_ids), len(product_df.columns)), fill_value=np.nan) # TODO can't put nans here, so put them after encoding, just conatenate to np array
-    missing_vals[:, 0] = missing_ids
-    missing_ids_df = pd.DataFrame(data=missing_vals, columns=product_df.columns)
-    product_df = pd.concat([product_df, missing_ids_df])
-    product_df.loc[:, "productId"] = product_df.productId.astype(int)
+    #full_ids = np.arange(product_df.productId.max())
+    #missing_ids = np.setdiff1d(full_ids, product_df.productId)
+    #missing_vals = np.full(shape=(len(missing_ids), len(product_df.columns)), fill_value=np.nan) # TODO can't put nans here, so put them after encoding, just conatenate to np array
+    #missing_vals[:, 0] = missing_ids
+    #missing_ids_df = pd.DataFrame(data=missing_vals, columns=product_df.columns)
+    #product_df = pd.concat([product_df, missing_ids_df])
+    #product_df.loc[:, "productId"] = product_df.productId.astype(int)
 
     row_lookup = dict(zip(product_df.productId, range(len(product_df)))) # faster for later - rather than use df so we can keep sparse encoded
 
