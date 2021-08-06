@@ -99,7 +99,7 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     train_dataset = tf.data.Dataset.from_tensor_slices((train_df[["productId", "customerId"]].values, train_df.purchased.values)) # TODO: make dataset for +ve and -ve, combine them with weightings
     val_dataset = tf.data.Dataset.from_tensor_slices((val_df[["productId", "customerId"]].values, val_df.purchased.values))
 
-    BATCH_SIZE = 8 # TODO make larger
+    BATCH_SIZE = 128 # TODO make larger
     train_dataset = train_dataset.shuffle(len(train_df) * 2).batch(BATCH_SIZE)
     val_dataset = val_dataset.shuffle(len(val_df) * 2).batch(BATCH_SIZE)
 
