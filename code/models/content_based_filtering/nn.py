@@ -50,6 +50,8 @@ class simple_NN(keras.Model):
         hid2 = self.fc2_drop(hid2)
         out = self.out(hid2)
 
+        breakpoint()
+
         return out
 
 
@@ -69,15 +71,15 @@ from models import common_funcs
 
 ################################################################################
 
-PLOT_LR = True # set to True to plot lr graph
+PLOT_LR = False # set to True to plot lr graph
 
 
-def lr_plotter(model, x_small, y_small):
-    lr_schedule = tf.keras.callbacks.LearningRateScheduler(lambda epoch: 1e-4 * 10**(epoch/3))
+def lr_plotter(model, x_small, y_small, epochs=12):
+    lr_schedule = tf.keras.callbacks.LearningRateScheduler(lambda epoch: 1e-4 * 10**(epoch/2))
     opt = keras.optimizers.Adam(learning_rate=0.1)
     model.compile(loss="binary_crossentropy", optimizer=opt)
     history = model.fit(x=x_small, y=y_small,
-                epochs=10,
+                epochs=epochs,
                 callbacks=[lr_schedule]
     )
     plt.semilogx(history.history['lr'], history.history['loss'])
@@ -98,6 +100,7 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     train_df = train_df.iloc[:int(len(train_df) * 0.8)]
     val_df = train_df.iloc[int(len(train_df) * 0.8):]
 
+    # bool_train_labels = train_df.purchased
 
     # NOTE: we have an imbalanced dataset, rather than use class-weights, I'll use oversampling, as this will be a smoother evolution (more positive samples in each batch rather than one heavily weighted sample)
     pos_train_dataset = tf.data.Dataset.from_tensor_slices((train_df[train_df.purchased][["productId", "customerId"]].values, train_df[train_df.purchased].purchased.values))
@@ -111,27 +114,26 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     resampled_val_dataset = tf.data.experimental.sample_from_datasets([pos_val_dataset, neg_val_dataset], weights=[0.5, 0.5])
 
     BATCH_SIZE = 100_000 # TODO make larger
-    train_dataset = resampled_train_dataset.shuffle(len(train_df) * 10).batch(BATCH_SIZE)
-    val_dataset = resampled_val_dataset.shuffle(len(val_df) * 10).batch(BATCH_SIZE)
+    train_dataset = resampled_train_dataset.shuffle(len(train_df) * 2).batch(BATCH_SIZE)
+    val_dataset = resampled_val_dataset.shuffle(len(val_df) * 2).batch(BATCH_SIZE)
 
     #model = simple_NN(np.array(list(row_lookup_customers.items())), encoded_customers.todense(), np.array(list(row_lookup_products.items())), encoded_products.todense())
     model = simple_NN(encoded_customers.todense(), encoded_products.todense())
-    early_stopping = keras.callbacks.EarlyStopping(monitor="val_loss", patience=10, mode="min")
+    early_stopping = keras.callbacks.EarlyStopping(monitor="val_loss", patience=4, mode="min")
     
 
     if PLOT_LR:
         x_small = list(train_dataset.as_numpy_iterator())[0][0]
         y_small = list(train_dataset.as_numpy_iterator())[0][1]
         lr_plotter(model, x_small, y_small)
-    learning_rate = 0.3 # NOTE: I found this from doing the lr_plotter above
+    learning_rate = 0.03 # NOTE: I found this from doing the lr_plotter above
 
-    breakpoint()
     model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=learning_rate), metrics=['accuracy'])
 
     history = model.fit(
         train_dataset, 
         validation_data=val_dataset,
-        epochs=100,
+        epochs=10,
         callbacks=[early_stopping],
         shuffle=True,
     )
