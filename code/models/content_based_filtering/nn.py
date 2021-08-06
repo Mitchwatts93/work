@@ -76,15 +76,15 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     train_dataset = tf.data.Dataset.from_tensor_slices((train_df[["productId", "customerId"]].values, train_df.purchased.values)) # TODO: make dataset for +ve and -ve, combine them with weightings
     val_dataset = tf.data.Dataset.from_tensor_slices((val_df[["productId", "customerId"]].values, val_df.purchased.values))
 
-    BATCH_SIZE = 128 # TODO make larger
-    train_dataset = train_dataset.shuffle(len(train_df) * 2).batch(BATCH_SIZE)
-    val_dataset = val_dataset.shuffle(len(val_df) * 2).batch(BATCH_SIZE)
+    BATCH_SIZE = 10000 # TODO make larger
+    train_dataset = train_dataset.shuffle(len(train_df) * 10).batch(BATCH_SIZE)
+    val_dataset = val_dataset.shuffle(len(val_df) * 10).batch(BATCH_SIZE)
 
     #model = simple_NN(np.array(list(row_lookup_customers.items())), encoded_customers.todense(), np.array(list(row_lookup_products.items())), encoded_products.todense())
     model = simple_NN(encoded_customers.todense(), encoded_products.todense())
     early_stopping = keras.callbacks.EarlyStopping(monitor="val_loss", patience=10, mode="min")
     learning_rate = 0.001 # TODO
-    model.compile(loss=tf.losses.MeanSquaredError(), optimizer=keras.optimizers.Adam(learning_rate=learning_rate))
+    model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=learning_rate))
 
     _history = model.fit(
         train_dataset, 
