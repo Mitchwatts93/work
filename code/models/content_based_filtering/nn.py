@@ -77,7 +77,7 @@ def lr_plotter(model, x_small, y_small):
     opt = keras.optimizers.Adam(learning_rate=0.1)
     model.compile(loss="binary_crossentropy", optimizer=opt)
     history = model.fit(x=x_small, y=y_small,
-                epochs=12,
+                epochs=10,
                 callbacks=[lr_schedule]
     )
     plt.semilogx(history.history['lr'], history.history['loss'])
@@ -97,13 +97,22 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
 
     train_df = train_df.iloc[:int(len(train_df) * 0.8)]
     val_df = train_df.iloc[int(len(train_df) * 0.8):]
-    
-    train_dataset = tf.data.Dataset.from_tensor_slices((train_df[["productId", "customerId"]].values, train_df.purchased.values)) # TODO: make dataset for +ve and -ve, combine them with weightings
-    val_dataset = tf.data.Dataset.from_tensor_slices((val_df[["productId", "customerId"]].values, val_df.purchased.values))
+
+
+    # NOTE: we have an imbalanced dataset, rather than use class-weights, I'll use oversampling, as this will be a smoother evolution (more positive samples in each batch rather than one heavily weighted sample)
+    pos_train_dataset = tf.data.Dataset.from_tensor_slices((train_df[train_df.purchased][["productId", "customerId"]].values, train_df[train_df.purchased].purchased.values))
+    neg_train_dataset = tf.data.Dataset.from_tensor_slices((train_df[~train_df.purchased][["productId", "customerId"]].values, train_df[~train_df.purchased].purchased.values))
+    #train_dataset = tf.data.Dataset.from_tensor_slices((train_df[["productId", "customerId"]].values, train_df.purchased.values)) # TODO: make dataset for +ve and -ve, combine them with weightings
+    pos_val_dataset = tf.data.Dataset.from_tensor_slices((val_df[val_df.purchased][["productId", "customerId"]].values, val_df[val_df.purchased].purchased.values))
+    neg_val_dataset = tf.data.Dataset.from_tensor_slices((val_df[~val_df.purchased][["productId", "customerId"]].values, val_df[~val_df.purchased].purchased.values))
+    #val_dataset = tf.data.Dataset.from_tensor_slices((val_df[["productId", "customerId"]].values, val_df.purchased.values))
+
+    resampled_train_dataset = tf.data.experimental.sample_from_datasets([pos_train_dataset, neg_train_dataset], weights=[0.5, 0.5])
+    resampled_val_dataset = tf.data.experimental.sample_from_datasets([pos_val_dataset, neg_val_dataset], weights=[0.5, 0.5])
 
     BATCH_SIZE = 100_000 # TODO make larger
-    train_dataset = train_dataset.shuffle(len(train_df) * 10).batch(BATCH_SIZE)
-    val_dataset = val_dataset.shuffle(len(val_df) * 10).batch(BATCH_SIZE)
+    train_dataset = resampled_train_dataset.shuffle(len(train_df) * 10).batch(BATCH_SIZE)
+    val_dataset = resampled_val_dataset.shuffle(len(val_df) * 10).batch(BATCH_SIZE)
 
     #model = simple_NN(np.array(list(row_lookup_customers.items())), encoded_customers.todense(), np.array(list(row_lookup_products.items())), encoded_products.todense())
     model = simple_NN(encoded_customers.todense(), encoded_products.todense())
