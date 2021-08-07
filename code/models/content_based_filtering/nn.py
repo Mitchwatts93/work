@@ -50,8 +50,6 @@ class simple_NN(keras.Model):
         hid2 = self.fc2_drop(hid2)
         out = self.out(hid2)
 
-        breakpoint()
-
         return out
 
 
@@ -113,13 +111,13 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     resampled_train_dataset = tf.data.experimental.sample_from_datasets([pos_train_dataset, neg_train_dataset], weights=[0.5, 0.5])
     resampled_val_dataset = tf.data.experimental.sample_from_datasets([pos_val_dataset, neg_val_dataset], weights=[0.5, 0.5])
 
-    BATCH_SIZE = 100_000 # TODO make larger
-    train_dataset = resampled_train_dataset.shuffle(len(train_df) * 2).batch(BATCH_SIZE)
-    val_dataset = resampled_val_dataset.shuffle(len(val_df) * 2).batch(BATCH_SIZE)
+    BATCH_SIZE = 1_000
+    train_dataset = resampled_train_dataset.shuffle(len(train_df) // 10).batch(BATCH_SIZE).prefetch(2) # NOTE: didn't spend much time thinking about this, probably because of oversampling want this to be larger
+    val_dataset = resampled_val_dataset.shuffle(len(val_df) // 10).batch(BATCH_SIZE).prefetch(2)
 
     #model = simple_NN(np.array(list(row_lookup_customers.items())), encoded_customers.todense(), np.array(list(row_lookup_products.items())), encoded_products.todense())
     model = simple_NN(encoded_customers.todense(), encoded_products.todense())
-    early_stopping = keras.callbacks.EarlyStopping(monitor="val_loss", patience=4, mode="min")
+    early_stopping = keras.callbacks.EarlyStopping(monitor="val_loss", patience=2, mode="min")
     
 
     if PLOT_LR:
@@ -133,7 +131,7 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     history = model.fit(
         train_dataset, 
         validation_data=val_dataset,
-        epochs=10,
+        epochs=4,
         callbacks=[early_stopping],
         shuffle=True,
     )
@@ -149,21 +147,14 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     plt.plot(history.history['val_accuracy'], label='train')
     plt.legend()
     plt.savefig("nn_acc.png")
-    breakpoint()
 
     test_dataset = tf.data.Dataset.from_tensor_slices((test_df[["productId", "customerId"]].values, test_df.purchased.values))
     test_dataset = test_dataset.batch(BATCH_SIZE) # no shuffle!
     predictions = model.predict(test_dataset)
-
-    pos_test_dataset = tf.data.Dataset.from_tensor_slices((test_df[test_df.purchased][["productId", "customerId"]].values, test_df[test_df.purchased].purchased.values))
-    neg_test_dataset = tf.data.Dataset.from_tensor_slices((test_df[~test_df.purchased][["productId", "customerId"]].values, test_df[~test_df.purchased].purchased.values))
-    resampled_test_dataset = tf.data.experimental.sample_from_datasets([pos_test_dataset, neg_test_dataset], weights=[0.5, 0.5])
-    test_dataset = resampled_test_dataset.shuffle(len(test_df) * 2).batch(BATCH_SIZE)
-    predictions = model.predict(test_dataset)
-
-    breakpoint()
+    import ipdb;ipdb.set_trace()
     test_df['purchased'] = predictions # NOTE: same name column as labels
     return test_df
+
 
 ################################################################################
 
