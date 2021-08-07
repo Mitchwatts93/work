@@ -111,7 +111,7 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     resampled_train_dataset = tf.data.experimental.sample_from_datasets([pos_train_dataset, neg_train_dataset], weights=[0.5, 0.5])
     resampled_val_dataset = tf.data.experimental.sample_from_datasets([pos_val_dataset, neg_val_dataset], weights=[0.5, 0.5])
 
-    BATCH_SIZE = 1_000
+    BATCH_SIZE = 100_000
     train_dataset = resampled_train_dataset.shuffle(len(train_df) // 10).batch(BATCH_SIZE).prefetch(2) # NOTE: didn't spend much time thinking about this, probably because of oversampling want this to be larger
     val_dataset = resampled_val_dataset.shuffle(len(val_df) // 10).batch(BATCH_SIZE).prefetch(2)
 
@@ -148,6 +148,7 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     plt.legend()
     plt.savefig("nn_acc.png")
 
+    breakpoint()
     test_dataset = tf.data.Dataset.from_tensor_slices((test_df[["productId", "customerId"]].values, test_df.purchased.values))
     test_dataset = test_dataset.batch(BATCH_SIZE) # no shuffle!
     predictions = model.predict(test_dataset)
