@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 
 class simple_NN(keras.Model):
 
-    def __init__(self, encoded_customers, encoded_products):
+    def __init__(self, encoded_customers, encoded_products, output_bias=None):
         super().__init__()
-        self.drop_rate = 0.1
+        self.drop_rate = 0.01
+        if output_bias is not None:
+            output_bias = keras.initializers.Constant(output_bias)
 
         self.encoded_customers = tf.convert_to_tensor(encoded_customers) #encoded_customers
         self.encoded_products = tf.convert_to_tensor(encoded_products)  #encoded_products
@@ -21,7 +23,7 @@ class simple_NN(keras.Model):
 
         self.fc2 = keras.layers.Dense(units=10, activation='relu')
         self.fc2_drop = keras.layers.Dropout(rate=self.drop_rate)
-        self.out = keras.layers.Dense(units=1, activation='sigmoid')
+        self.out = keras.layers.Dense(units=1, activation='sigmoid', bias_initializer=output_bias)
 
 
     def call(self, X):
@@ -115,8 +117,15 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     train_dataset = resampled_train_dataset.shuffle(len(train_df) // 10).batch(BATCH_SIZE).prefetch(2) # NOTE: didn't spend much time thinking about this, probably because of oversampling want this to be larger
     val_dataset = resampled_val_dataset.shuffle(len(val_df) // 10).batch(BATCH_SIZE).prefetch(2)
 
+    # set the bias manually
+    n_pos = len(train_df[train_df.purchased])
+    n_neg = len(train_df[~train_df.purchased])
+    p0 = n_pos / (n_pos + n_neg) 
+    b0 = np.log([n_pos/n_neg])
+    p0 = 1 / (1 + np.exp(-b0))
+
     #model = simple_NN(np.array(list(row_lookup_customers.items())), encoded_customers.todense(), np.array(list(row_lookup_products.items())), encoded_products.todense())
-    model = simple_NN(encoded_customers.todense(), encoded_products.todense())
+    model = simple_NN(encoded_customers.todense(), encoded_products.todense(), output_bias=b0)
     early_stopping = keras.callbacks.EarlyStopping(monitor="val_loss", patience=2, mode="min")
     
 
@@ -126,7 +135,8 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
         lr_plotter(model, x_small, y_small)
     learning_rate = 0.03 # NOTE: I found this from doing the lr_plotter above
 
-    model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=learning_rate), metrics=['accuracy'])
+
+    model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=learning_rate), metrics=['accuracy', keras.metrics.Precision(), keras.metrics.Recall(), keras.metrics.AUC()])
 
     history = model.fit(
         train_dataset, 
@@ -148,7 +158,8 @@ def get_content_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nd
     plt.legend()
     plt.savefig("nn_acc.png")
 
-    breakpoint()
+    test_df.loc[:, "customerId"] = test_df.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix
+    test_df.loc[:, "productId"] = test_df.productId.map(row_lookup_products)
     test_dataset = tf.data.Dataset.from_tensor_slices((test_df[["productId", "customerId"]].values, test_df.purchased.values))
     test_dataset = test_dataset.batch(BATCH_SIZE) # no shuffle!
     predictions = model.predict(test_dataset)
