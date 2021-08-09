@@ -113,7 +113,7 @@
         "recall": 0.1964223371182524,
         "auc_roc": 0.8691246401873784
     },
-    "vector_content_sim": {
+    "vector_content_sim_customer": {
         "f1": 0.1417716348608533,
         "precision": 0.07792460772741905,
         "recall": 0.7847583581320344,
