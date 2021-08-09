@@ -3,7 +3,9 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
-
+from surprise import Dataset
+from surprise import Reader
+from surprise.prediction_algorithms.co_clustering import CoClustering
 
 class simple_NN(keras.Model):
 
@@ -13,27 +15,6 @@ class simple_NN(keras.Model):
         if output_bias is not None:
             output_bias = keras.initializers.Constant(output_bias)
 
-        # coll
-
-        embedding_dim = 20
-        
-        self.prod_emb = keras.layers.Embedding(highest_product_ind, embedding_dim)
-        self.cust_emb = keras.layers.Embedding(highest_customer_ind, embedding_dim)
-
-        self.prod_fc1_coll = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn_coll = keras.layers.BatchNormalization()
-        self.prod_drop_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.cust_fc1_coll = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn_coll = keras.layers.BatchNormalization()
-        self.cust_drop_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.fc2_coll = keras.layers.Dense(units=10, activation='relu')
-        self.fc2_bn_coll = keras.layers.BatchNormalization()
-        self.fc2_drop_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-
-        #### cont
         self.encoded_customers = tf.convert_to_tensor(encoded_customers) #encoded_customers
         self.encoded_products = tf.convert_to_tensor(encoded_products)  #encoded_products
 
@@ -49,13 +30,13 @@ class simple_NN(keras.Model):
         self.views_bn_cont = keras.layers.BatchNormalization()
         self.views_drop_cont = keras.layers.Dropout(rate=self.drop_rate)
 
-        self.fc2_cont = keras.layers.Dense(units=10, activation='relu')
+        self.fc2_cont = keras.layers.Dense(units=1, activation='relu')
         self.fc2_bn_cont = keras.layers.BatchNormalization()
         self.fc2_drop_cont= keras.layers.Dropout(rate=self.drop_rate)
 
         ###
 
-        self.fc1_tot = keras.layers.Dense(units=10, activation='relu')
+        self.fc1_tot = keras.layers.Dense(units=3, activation='relu')
         self.fc1_bn_drop = keras.layers.BatchNormalization()
         self.fc1_tot_drop = keras.layers.Dropout(rate=self.drop_rate)
 
@@ -65,26 +46,8 @@ class simple_NN(keras.Model):
     def call(self, X):
         product_id = tf.cast(X[:, 0], tf.int32)
         customer_id =tf.cast( X[:, 1], tf.int32)
-        views = X[:, 2:]
-
-        ### collaborative
-        
-        product_vec_coll = self.prod_emb(product_id)
-        customer_vec_coll = self.cust_emb(customer_id)
-        
-        p_hid_coll = self.prod_fc1_coll(product_vec_coll)
-        p_hid_coll = self.prod_bn_coll(p_hid_coll)
-        p_hid_coll = self.prod_drop_coll(p_hid_coll)
-        c_hid_coll = self.cust_fc1_coll(customer_vec_coll)
-        c_hid_coll = self.cust_bn_coll(c_hid_coll)
-        c_hid_coll = self.cust_drop_coll(c_hid_coll)
-
-        concatted_coll = tf.concat([p_hid_coll, c_hid_coll], axis=-1)
-
-        hid2_coll = self.fc2_coll(concatted_coll)
-        hid2_coll = self.fc2_bn_coll(hid2_coll)
-        hid2_coll = self.fc2_drop_coll(hid2_coll)
-
+        views = X[:, 2:-1] # this also includes the predictions
+        cocluster_preds = X[:, -1]
 
         ### content
 
@@ -100,6 +63,7 @@ class simple_NN(keras.Model):
         p_hid_cont = self.prod_fc1_cont(product_vec_cont)
         p_hid_cont = self.prod_bn_cont(p_hid_cont)
         p_hid_cont = self.prod_drop_cont(p_hid_cont)
+
         c_hid_cont = self.cust_fc1_cont(customer_vec_cont)
         c_hid_cont = self.cust_bn_cont(c_hid_cont)
         c_hid_cont = self.cust_drop_cont(c_hid_cont)
@@ -110,171 +74,18 @@ class simple_NN(keras.Model):
 
         concatted_cont = tf.concat([p_hid_cont, c_hid_cont, views_hid_cont], axis=-1)
 
-        hid2_cont = self.fc2_cont(concatted_cont)
+        hid2_cont = self.fc2_cont(concatted_cont) # this is now size 1 output
         hid2_cont = self.fc2_bn_cont(hid2_cont)
-        hid2_cont = self.fc2_drop_cont(hid2_cont)
-
+        hid2_cont = self.fc2_drop_cont(hid2_cont) 
 
         ###
 
-        concatted_all = tf.concat([hid2_coll, hid2_cont], axis=-1)
+        concatted_all = tf.concat([cocluster_preds, hid2_cont], axis=-1)
         hid_f1 = self.fc1_tot(concatted_all)
         hid_f1 = self.fc1_bn_drop(hid_f1)
         hid_f1 = self.fc1_tot_drop(hid_f1)
+
         out = self.out(hid_f1)
-
-        return out
-
-
-class deep_NN(keras.Model):
-
-    def __init__(self, highest_customer_ind, highest_product_ind, encoded_customers, encoded_products, output_bias=None):
-        super().__init__()
-        self.drop_rate = 0.01
-        if output_bias is not None:
-            output_bias = keras.initializers.Constant(output_bias)
-
-        self.encoded_customers = tf.convert_to_tensor(encoded_customers) #encoded_customers
-        self.encoded_products = tf.convert_to_tensor(encoded_products)  #encoded_products
-
-        self.prod_fc1_coll = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn1_coll = keras.layers.BatchNormalization()
-        self.prod_drop1_coll = keras.layers.Dropout(rate=self.drop_rate)
-        self.prod_fc2_coll = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn2_coll = keras.layers.BatchNormalization()
-        self.prod_drop2_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.cust_fc1_coll = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn1_coll = keras.layers.BatchNormalization()
-        self.cust_drop1_coll = keras.layers.Dropout(rate=self.drop_rate)
-        self.cust_fc2_coll = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn2_coll = keras.layers.BatchNormalization()
-        self.cust_drop2_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.fc1_coll = keras.layers.Dense(units=10, activation='relu')
-        self.fc1_bn_coll = keras.layers.BatchNormalization()
-        self.fc1_drop_coll = keras.layers.Dropout(rate=self.drop_rate)
-        self.fc2_coll = keras.layers.Dense(units=10, activation='relu')
-        self.fc2_bn_coll = keras.layers.BatchNormalization()
-        self.fc2_drop_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-
-        ####
-        embedding_dim = 50
-        
-        self.prod_emb = keras.layers.Embedding(highest_product_ind, embedding_dim)
-        self.cust_emb = keras.layers.Embedding(highest_customer_ind, embedding_dim)
-
-        self.prod_fc1_cont = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn1_cont = keras.layers.BatchNormalization()
-        self.prod_drop1_cont = keras.layers.Dropout(rate=self.drop_rate)
-        self.prod_fc2_cont = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn2_cont = keras.layers.BatchNormalization()
-        self.prod_drop2_cont = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.cust_fc1_cont = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn1_cont = keras.layers.BatchNormalization()
-        self.cust_drop1_cont = keras.layers.Dropout(rate=self.drop_rate)
-        self.cust_fc2_cont = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn2_cont = keras.layers.BatchNormalization()
-        self.cust_drop2_cont = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.fc1_cont = keras.layers.Dense(units=10, activation='relu')
-        self.fc1_bn_cont = keras.layers.BatchNormalization()
-        self.fc1_drop_cont= keras.layers.Dropout(rate=self.drop_rate)
-        self.fc2_cont = keras.layers.Dense(units=10, activation='relu')
-        self.fc2_bn_cont = keras.layers.BatchNormalization()
-        self.fc2_drop_cont= keras.layers.Dropout(rate=self.drop_rate)
-
-        ###
-
-        self.fc1_tot = keras.layers.Dense(units=10, activation='relu')
-        self.fc1_bn_drop = keras.layers.BatchNormalization()
-        self.fc1_tot_drop = keras.layers.Dropout(rate=self.drop_rate)
-        self.fc2_tot = keras.layers.Dense(units=10, activation='relu')
-        self.fc2_bn_drop = keras.layers.BatchNormalization()
-        self.fc2_tot_drop = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.out = keras.layers.Dense(units=1, activation='sigmoid', bias_initializer=output_bias)
-
-
-    def call(self, X):
-        product_id = tf.cast(X[:, 0], tf.int32)
-        customer_id = tf.cast(X[:, 1], tf.int32)
-
-        ### collaborative
-        product_vec_coll = self.prod_emb(product_id)
-        customer_vec_coll = self.cust_emb(customer_id)
-        
-        p_hid_coll1 = self.prod_fc1_coll(product_vec_coll)
-        p_hid_coll1 = self.prod_bn1_coll(p_hid_coll1)
-        p_hid_coll1 = self.prod_drop1_coll(p_hid_coll1)
-        p_hid_coll2 = self.prod_fc2_coll(p_hid_coll1)
-        p_hid_coll2 = self.prod_bn2_coll(p_hid_coll2)
-        p_hid_coll2 = self.prod_drop2_coll(p_hid_coll2)
-
-        c_hid_coll1 = self.cust_fc1_coll(customer_vec_coll)
-        c_hid_coll1 = self.cust_bn1_coll(c_hid_coll1)
-        c_hid_coll1 = self.cust_drop1_coll(c_hid_coll1)
-        c_hid_coll2 = self.cust_fc2_coll(c_hid_coll1)
-        c_hid_coll2 = self.cust_bn2_coll(c_hid_coll2)
-        c_hid_coll2 = self.cust_drop2_coll(c_hid_coll2)
-
-        concatted_coll = tf.concat([p_hid_coll2, c_hid_coll2], axis=-1)
-
-        hid2_coll1 = self.fc1_coll(concatted_coll)
-        hid2_coll1 = self.fc1_bn_coll(hid2_coll1)
-        hid2_coll1 = self.fc1_drop_coll(hid2_coll1)
-        hid2_coll2 = self.fc2_coll(hid2_coll1)
-        hid2_coll2 = self.fc2_bn_coll(hid2_coll2)
-        hid2_coll2 = self.fc2_drop_coll(hid2_coll2)
-
-        ### content
-
-        product_vec_cont = tf.nn.embedding_lookup(
-            params=self.encoded_products,
-            ids=product_id,
-        )
-        customer_vec_cont = tf.nn.embedding_lookup(
-            params=self.encoded_customers,
-            ids=customer_id,
-        )
-
-        p_hid_cont1 = self.prod_fc1_cont(product_vec_cont)
-        p_hid_cont1 = self.prod_bn1_cont(p_hid_cont1)
-        p_hid_cont1 = self.prod_drop1_cont(p_hid_cont1)
-        p_hid_cont2 = self.prod_fc2_cont(p_hid_cont1)
-        p_hid_cont2 = self.prod_bn2_cont(p_hid_cont2)
-        p_hid_cont2 = self.prod_drop2_cont(p_hid_cont2)
-
-        c_hid_cont1 = self.cust_fc1_cont(customer_vec_cont)
-        c_hid_cont1 = self.cust_bn1_cont(c_hid_cont1)
-        c_hid_cont1 = self.cust_drop1_cont(c_hid_cont1)
-        c_hid_cont2 = self.cust_fc2_cont(c_hid_cont1)
-        c_hid_cont2 = self.cust_bn2_cont(c_hid_cont2)
-        c_hid_cont2 = self.cust_drop2_cont(c_hid_cont2)
-
-        concatted_cont = tf.concat([p_hid_cont2, c_hid_cont2], axis=-1)
-
-        hid2_cont1 = self.fc1_cont(concatted_cont)
-        hid2_cont1 = self.fc1_bn_cont(hid2_cont1)
-        hid2_cont1 = self.fc1_drop_cont(hid2_cont1)
-        hid2_cont2 = self.fc2_cont(hid2_cont1)
-        hid2_cont2 = self.fc2_bn_cont(hid2_cont2)
-        hid2_cont2 = self.fc2_drop_cont(hid2_cont2)
-
-        ###
-
-        concatted_all = tf.concat([hid2_cont2, hid2_coll2], axis=-1)
-
-        hid_f1 = self.fc1_tot(concatted_all)
-        hid_f1 = self.fc1_bn_drop(hid_f1)
-        hid_f1 = self.fc1_tot_drop(hid_f1)
-        hid_f2 = self.fc2_tot(hid_f1)
-        hid_f2 = self.fc2_bn_drop(hid_f2)
-        hid_f2 = self.fc2_tot_drop(hid_f2)
-
-        out = self.out(hid_f2)
 
         return out
 
@@ -313,11 +124,14 @@ def lr_plotter(model, x_small, y_small, epochs=12):
 
 
 def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
-    physical_devices = tf.config.list_physical_devices('GPU')[:1]
-    tf.config.experimental.set_visible_devices(physical_devices[0], 'GPU')
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+    # combine coclustering (the best collaborative we have) with content and views nn
+
+    #physical_devices = tf.config.list_physical_devices('GPU')[:1]
+    #tf.config.experimental.set_visible_devices(physical_devices[0], 'GPU')
+    #tf.config.experimental.set_memory_growth(physical_devices[0], True)
     #tf.config.experimental.set_memory_growth(physical_devices[1], True)
 
+    
     row_lookup_customers, encoded_customers = customer_vector_similarity.encode_customer()
     row_lookup_products, encoded_products = product_vector_similarity.encode_products()
 
@@ -343,11 +157,43 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
     train_df = train_df.iloc[:int(len(train_df) * 0.8)]
     val_df = train_df.iloc[int(len(train_df) * 0.8):]
 
-    # bool_train_labels = train_df.purchased
+    # first get the coclustering predictions
+    train_data = Dataset.load_from_df(train_df, reader=Reader(rating_scale=(0,1)))
+    val_data = Dataset.load_from_df(val_df, reader=Reader(rating_scale=(0,1)))
+    test_data = Dataset.load_from_df(test_df, reader=Reader(rating_scale=(0,1)))
+
+    # fit model
+    algo = CoClustering()
+    algo.fit(train_data.build_full_trainset())
+
+    # make predictions
+    # train
+    train_preds = algo.test(train_data.build_full_trainset().build_testset()) 
+    train_cocluster_df = pd.DataFrame(train_preds)
+    train_predictions = train_cocluster_df.est.values
+    # val
+    val_preds = algo.test(val_data.build_full_trainset().build_testset()) 
+    val_cocluster_df = pd.DataFrame(val_preds)
+    val_predictions = val_cocluster_df.est.values
+    # test
+    test_preds = algo.test(test_data.build_full_trainset().build_testset()) 
+    test_cocluster_df = pd.DataFrame(test_preds)
+    test_predictions = test_cocluster_df.est.values
+    # these are the coclustering predictions
+
+    ## next join these predictions onto the train_data
+    breakpoint()
+    train_df["cocluster_pred"] = train_predictions
+    val_df["cocluster_pred"] = val_predictions
+    test_df["cocluster_pred"] = test_predictions
+    breakpoint()
+    # TODO check the above works correctly
+
+    ###
 
     # NOTE: we have an imbalanced dataset, rather than use class-weights, I'll use oversampling, as this will be a smoother evolution (more positive samples in each batch rather than one heavily weighted sample)
     balance = False
-    feature_cols = ["productId", "customerId", "viewOnly", "changeThumbnail", "imageZoom", "viewCatwalk", "view360", "sizeGuide"]
+    feature_cols = ["productId", "customerId", "viewOnly", "changeThumbnail", "imageZoom", "viewCatwalk", "view360", "sizeGuide", "cocluster_pred"]
     if balance:
         pos_train_dataset = tf.data.Dataset.from_tensor_slices((train_df[train_df.purchased][feature_cols].values, train_df[train_df.purchased].purchased.values))
         neg_train_dataset = tf.data.Dataset.from_tensor_slices((train_df[~train_df.purchased][feature_cols].values, train_df[~train_df.purchased].purchased.values))
@@ -356,7 +202,6 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
 
         resampled_train_dataset = tf.data.experimental.sample_from_datasets([pos_train_dataset, neg_train_dataset], weights=[0.5, 0.5])
         resampled_val_dataset = tf.data.experimental.sample_from_datasets([pos_val_dataset, neg_val_dataset], weights=[0.5, 0.5])
-
     else:
         resampled_train_dataset = tf.data.Dataset.from_tensor_slices((train_df[feature_cols].values, train_df.purchased.values)) # TODO: make dataset for +ve and -ve, combine them with weightings
         resampled_val_dataset = tf.data.Dataset.from_tensor_slices((val_df[feature_cols].values, val_df.purchased.values))
@@ -378,10 +223,8 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
         output_bias=b0
     )
     early_stopping = keras.callbacks.EarlyStopping(
-        #monitor="val_loss", 
         monitor='val_auc', mode='max',
         patience=4,
-         #mode="min"
         restore_best_weights=True,
     )
     
@@ -391,7 +234,6 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
         y_small = list(train_dataset.as_numpy_iterator())[0][1][:1000]
         lr_plotter(model, x_small, y_small)
     learning_rate = 0.03 # NOTE: I found this from doing the lr_plotter above
-
 
     model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=learning_rate), metrics=['accuracy', keras.metrics.Precision(), keras.metrics.Recall(), keras.metrics.AUC(), keras.metrics.BinaryAccuracy()])
 
@@ -403,7 +245,7 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
         shuffle=True,
     )
     
-    model_name = "hybrid_nn_views_simple_unbalanced"
+    model_name = "nn_views_coclustering_simple_unbalanced"
 
     def plot_all(history, model_name):
         plt.plot(history.history['loss'], label='train')
@@ -438,6 +280,7 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
     
     plot_all(history, model_name)
 
+    # TODO fix this bit
     test_df_mapped = test_df.copy() 
     test_df_mapped.loc[:, "customerId"] = test_df_mapped.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
     test_df_mapped.loc[:, "productId"] = test_df_mapped.productId.map(row_lookup_products)
@@ -520,7 +363,7 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
 ################################################################################
 
 def main():
-    model_name = "hybrid_nn_views_simple_unbalanced"
+    model_name = "nn_views_coclustering_simple_unbalanced"
     dataset_being_evaluated = "val"
 
     predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_hybrid_nn_probs, dataset_being_evaluated=dataset_being_evaluated)
