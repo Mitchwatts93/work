@@ -20,6 +20,7 @@ from models import common_funcs
 
 def get_SlopeOne_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
     # build surprise datasets
+    train_df = train_df.iloc[:int(len(train_df) / 3)] # RAM ISSUES
     train_data = Dataset.load_from_df(train_df, reader=Reader(rating_scale=(0,1)))
     val_data = Dataset.load_from_df(test_df, reader=Reader(rating_scale=(0,1)))
 

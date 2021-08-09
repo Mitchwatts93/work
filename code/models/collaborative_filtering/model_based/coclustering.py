@@ -28,8 +28,7 @@ def get_CoClustering_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.
     algo.fit(train_data.build_full_trainset())
 
     # make predictions
-    probs = algo.test(val_data.build_full_trainset().build_testset()) # TODO this doesn't work?
-    
+    probs = algo.test(val_data.build_full_trainset().build_testset()) 
     df = pd.DataFrame(probs)
     predictions = df.est.values
 

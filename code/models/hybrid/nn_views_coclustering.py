@@ -6,6 +6,7 @@ from sklearn.preprocessing import StandardScaler
 from surprise import Dataset
 from surprise import Reader
 from surprise.prediction_algorithms.co_clustering import CoClustering
+import gzip, pickle
 
 class simple_NN(keras.Model):
 
@@ -47,7 +48,7 @@ class simple_NN(keras.Model):
         product_id = tf.cast(X[:, 0], tf.int32)
         customer_id =tf.cast( X[:, 1], tf.int32)
         views = X[:, 2:-1] # this also includes the predictions
-        cocluster_preds = X[:, -1]
+        cocluster_preds = X[:, -1:]
 
         ### content
 
@@ -79,7 +80,6 @@ class simple_NN(keras.Model):
         hid2_cont = self.fc2_drop_cont(hid2_cont) 
 
         ###
-
         concatted_all = tf.concat([cocluster_preds, hid2_cont], axis=-1)
         hid_f1 = self.fc1_tot(concatted_all)
         hid_f1 = self.fc1_bn_drop(hid_f1)
@@ -157,37 +157,74 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
     train_df = train_df.iloc[:int(len(train_df) * 0.8)]
     val_df = train_df.iloc[int(len(train_df) * 0.8):]
 
+    test_df_mapped = test_df.copy() 
+    test_df_mapped.loc[:, "customerId"] = test_df_mapped.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
+    test_df_mapped.loc[:, "productId"] = test_df_mapped.productId.map(row_lookup_products)
+
+    _train, _val, test_set_df = split_data.get_split_labels_training_df()
+    test_set_df = pd.merge(views, test_set_df, on=['customerId', 'productId'], how='inner') # views with test_set_df
+    test_set_df = test_set_df[(test_set_df.customerId.isin(row_lookup_customers.keys())) & (test_set_df.productId.isin(row_lookup_products.keys()))]
+    test_set_df_mapped = test_set_df.copy() 
+    test_set_df_mapped.loc[:, "customerId"] = test_set_df_mapped.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
+    test_set_df_mapped.loc[:, "productId"] = test_set_df_mapped.productId.map(row_lookup_products)
+
+    holdout_set = data_loading.get_labels_predict_df()
+    holdout_set = pd.merge(views, holdout_set, on=['customerId', 'productId'], how='inner') # views with holdout_set
+    holdout_set = holdout_set[(holdout_set.customerId.isin(row_lookup_customers.keys())) & (holdout_set.productId.isin(row_lookup_products.keys()))]
+    holdout_set_df_mapped = holdout_set.copy() 
+    holdout_set_df_mapped.loc[:, "customerId"] = holdout_set_df_mapped.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
+    holdout_set_df_mapped.loc[:, "productId"] = holdout_set_df_mapped.productId.map(row_lookup_products)
+    holdout_set_df_mapped.loc[:, "purchase_probability"] = 0
+
     # first get the coclustering predictions
-    train_data = Dataset.load_from_df(train_df, reader=Reader(rating_scale=(0,1)))
-    val_data = Dataset.load_from_df(val_df, reader=Reader(rating_scale=(0,1)))
-    test_data = Dataset.load_from_df(test_df, reader=Reader(rating_scale=(0,1)))
+    try:
+        with gzip.open(os.path.join(constants.MODEL_FILES_DIR, "cocluster_preds.gzip"), 'rb') as f:
+            train_predictions, val_predictions, test_predictions, test_set_predictions, holdout_predictions = pickle.load(f)
+    except FileNotFoundError:
+        train_data = Dataset.load_from_df(train_df[['customerId', 'productId', 'purchased']], reader=Reader(rating_scale=(0,1)))
+        val_data = Dataset.load_from_df(val_df[['customerId', 'productId', 'purchased']], reader=Reader(rating_scale=(0,1)))
+        test_data = Dataset.load_from_df(test_df_mapped[['customerId', 'productId', 'purchased']], reader=Reader(rating_scale=(0,1)))
 
-    # fit model
-    algo = CoClustering()
-    algo.fit(train_data.build_full_trainset())
+        test_set_data = Dataset.load_from_df(test_set_df_mapped[['customerId', 'productId', 'purchased']], reader=Reader(rating_scale=(0,1)))
+        holdout_set_data = Dataset.load_from_df(holdout_set_df_mapped[['customerId', 'productId', 'purchase_probability']], reader=Reader(rating_scale=(0,1)))
 
-    # make predictions
-    # train
-    train_preds = algo.test(train_data.build_full_trainset().build_testset()) 
-    train_cocluster_df = pd.DataFrame(train_preds)
-    train_predictions = train_cocluster_df.est.values
-    # val
-    val_preds = algo.test(val_data.build_full_trainset().build_testset()) 
-    val_cocluster_df = pd.DataFrame(val_preds)
-    val_predictions = val_cocluster_df.est.values
-    # test
-    test_preds = algo.test(test_data.build_full_trainset().build_testset()) 
-    test_cocluster_df = pd.DataFrame(test_preds)
-    test_predictions = test_cocluster_df.est.values
-    # these are the coclustering predictions
+        # fit model
+        algo = CoClustering()
+        algo.fit(train_data.build_full_trainset())
+
+        # make predictions
+        # train
+        train_preds = algo.test(train_data.build_full_trainset().build_testset()) 
+        train_cocluster_df = pd.DataFrame(train_preds)
+        train_predictions = train_cocluster_df.est.values
+        # val
+        val_preds = algo.test(val_data.build_full_trainset().build_testset()) 
+        val_cocluster_df = pd.DataFrame(val_preds)
+        val_predictions = val_cocluster_df.est.values
+        # test
+        test_preds = algo.test(test_data.build_full_trainset().build_testset()) 
+        test_cocluster_df = pd.DataFrame(test_preds)
+        test_predictions = test_cocluster_df.est.values
+        # test set
+        test_set_preds = algo.test(test_set_data.build_full_trainset().build_testset()) 
+        test_set_cocluster_df = pd.DataFrame(test_set_preds)
+        test_set_predictions = test_set_cocluster_df.est.values
+        # holdout set
+        holdout_preds = algo.test(holdout_set_data.build_full_trainset().build_testset()) 
+        holdout_cocluster_df = pd.DataFrame(holdout_preds)
+        holdout_predictions = holdout_cocluster_df.est.values
+
+        # these are the coclustering predictions
+        with gzip.open(os.path.join(constants.MODEL_FILES_DIR, "cocluster_preds.gzip"), 'wb') as f:
+            pickle.dump([train_predictions, val_predictions, test_predictions, test_set_predictions, holdout_predictions], f, protocol=4)
 
     ## next join these predictions onto the train_data
-    breakpoint()
     train_df["cocluster_pred"] = train_predictions
     val_df["cocluster_pred"] = val_predictions
-    test_df["cocluster_pred"] = test_predictions
-    breakpoint()
-    # TODO check the above works correctly
+    test_df_mapped["cocluster_pred"] = test_predictions
+
+    test_set_df_mapped["cocluster_pred"] = test_set_predictions
+    holdout_set_df_mapped["cocluster_pred"] = holdout_predictions
 
     ###
 
@@ -224,7 +261,7 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
     )
     early_stopping = keras.callbacks.EarlyStopping(
         monitor='val_auc', mode='max',
-        patience=4,
+        patience=6,
         restore_best_weights=True,
     )
     
@@ -233,14 +270,14 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
         x_small = list(train_dataset.as_numpy_iterator())[0][0][:1000]
         y_small = list(train_dataset.as_numpy_iterator())[0][1][:1000]
         lr_plotter(model, x_small, y_small)
-    learning_rate = 0.03 # NOTE: I found this from doing the lr_plotter above
+    learning_rate = 0.001 # NOTE: I found this from doing the lr_plotter above
 
     model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=learning_rate), metrics=['accuracy', keras.metrics.Precision(), keras.metrics.Recall(), keras.metrics.AUC(), keras.metrics.BinaryAccuracy()])
 
     history = model.fit(
         train_dataset, 
         validation_data=val_dataset,
-        epochs=20,
+        epochs=40,
         callbacks=[early_stopping],
         shuffle=True,
     )
@@ -281,9 +318,6 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
     plot_all(history, model_name)
 
     # TODO fix this bit
-    test_df_mapped = test_df.copy() 
-    test_df_mapped.loc[:, "customerId"] = test_df_mapped.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
-    test_df_mapped.loc[:, "productId"] = test_df_mapped.productId.map(row_lookup_products)
     test_dataset = tf.data.Dataset.from_tensor_slices((test_df_mapped[feature_cols].values, test_df_mapped.purchased.values))
     test_dataset = test_dataset.batch(BATCH_SIZE) # no shuffle!
     predictions = model.predict(test_dataset)
@@ -292,62 +326,18 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
 
 
     ###
-    def final_bit(history, model_name, model, views, row_lookup_customers, row_lookup_products, feature_cols, BATCH_SIZE, plot_all):
-        from processing import split_data, data_loading
-        import gzip, pickle
-
-
-        train, val, test_set_df = split_data.get_split_labels_training_df()
-
-        test_set_df = pd.merge(views, test_set_df, on=['customerId', 'productId'], how='inner') # views with test_set_df
-        test_set_df = test_set_df[(test_set_df.customerId.isin(row_lookup_customers.keys())) & (test_set_df.productId.isin(row_lookup_products.keys()))]
-
-        test_set_df_mapped = test_set_df.copy() 
-        test_set_df_mapped.loc[:, "customerId"] = test_set_df_mapped.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
-        test_set_df_mapped.loc[:, "productId"] = test_set_df_mapped.productId.map(row_lookup_products)
+    def final_bit(history, model_name, model, views, row_lookup_customers, row_lookup_products, feature_cols, BATCH_SIZE, plot_all, test_set_df_mapped, holdout_set_df_mapped):
         
-        #test_set_df_mapped.dropna(inplace=True)
-        #test_set_df_mapped.loc[:, 'customerId'] = test_set_df_mapped.customerId.astype(int)
-        #test_set_df_mapped.loc[:, 'productId'] = test_set_df_mapped.productId.astype(int)
-
         test_set_dataset = tf.data.Dataset.from_tensor_slices((test_set_df_mapped[feature_cols].values, test_set_df_mapped.purchased.values))
         test_set_dataset = test_set_dataset.batch(BATCH_SIZE) # no shuffle!
         predictions = model.predict(test_set_dataset)
 
-
-        #inv_map_cust = {v: k for k, v in row_lookup_customers.items()}
-        #inv_map_prod = {v: k for k, v in row_lookup_products.items()}
-        #test_set_df_mapped.loc[:, "customerId"] = test_set_df_mapped.customerId.map(inv_map_cust) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
-        #test_set_df_mapped.loc[:, "productId"] = test_set_df_mapped.productId.map(inv_map_prod)
-
         test_set_df_mapped['purchased'] = predictions
         with gzip.open('nnv2_test_set.gzip', 'wb') as f: pickle.dump(test_set_df_mapped, f, protocol=4)
-
-
-
-        holdout_set = data_loading.get_labels_predict_df()
-
-        holdout_set = pd.merge(views, holdout_set, on=['customerId', 'productId'], how='inner') # views with holdout_set
-        holdout_set = holdout_set[(holdout_set.customerId.isin(row_lookup_customers.keys())) & (holdout_set.productId.isin(row_lookup_products.keys()))]
-
-        holdout_set_df_mapped = holdout_set.copy() 
-        holdout_set_df_mapped.loc[:, "customerId"] = holdout_set_df_mapped.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
-        holdout_set_df_mapped.loc[:, "productId"] = holdout_set_df_mapped.productId.map(row_lookup_products)
-
-        holdout_set_df_mapped.loc[:, "purchase_probability"] = 0
-
-        #holdout_set_df_mapped.dropna(inplace=True)
-        #holdout_set_df_mapped.loc[:, 'customerId'] = holdout_set_df_mapped.customerId.astype(int)
-        #holdout_set_df_mapped.loc[:, 'productId'] = holdout_set_df_mapped.productId.astype(int)
 
         holdout_set_dataset = tf.data.Dataset.from_tensor_slices((holdout_set_df_mapped[feature_cols].values, holdout_set_df_mapped.purchase_probability.values))
         holdout_set_dataset = holdout_set_dataset.batch(BATCH_SIZE) # no shuffle!
         predictions = model.predict(holdout_set_dataset)
-        
-        #inv_map_cust = {v: k for k, v in row_lookup_customers.items()}
-        #inv_map_prod = {v: k for k, v in row_lookup_products.items()}
-        #holdout_set_df_mapped.loc[:, "customerId"] = holdout_set_df_mapped.customerId.map(inv_map_cust) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
-        #holdout_set_df_mapped.loc[:, "productId"] = holdout_set_df_mapped.productId.map(inv_map_prod)
 
         holdout_set['purchase_probability'] = predictions
         with gzip.open('nnv2_holdout_set.gzip', 'wb') as f: pickle.dump(holdout_set, f, protocol=4)
@@ -355,7 +345,7 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
 
         plot_all(history, model_name)
 
-    final_bit(history, model_name, model, views, row_lookup_customers, row_lookup_products, feature_cols, BATCH_SIZE, plot_all)
+    final_bit(history, model_name, model, views, row_lookup_customers, row_lookup_products, feature_cols, BATCH_SIZE, plot_all, test_set_df_mapped, holdout_set_df_mapped)
 
     return test_df
 

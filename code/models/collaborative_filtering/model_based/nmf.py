@@ -19,6 +19,17 @@ from models import common_funcs
 ################################################################################
 
 def get_NMF_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
+    train_df = train_df.iloc[:int(len(train_df) / 3)] # RAM ISSUES
+    # discard items and products which have all zeros
+    # as surprise package struggles with these
+    product_counts = train_df.groupby('productId')['purchased'].sum()
+    valid_products = product_counts[product_counts > 0].index
+    customer_counts = train_df.groupby('customerId')['purchased'].sum()
+    valid_customers = customer_counts[customer_counts > 0].index
+
+    train_df = train_df[(train_df.customerId.isin(valid_customers)) & (train_df.productId.isin(valid_products))]
+    test_df = test_df[(test_df.customerId.isin(valid_customers)) & (test_df.productId.isin(valid_products))]
+
     # build surprise datasets
     train_data = Dataset.load_from_df(train_df, reader=Reader(rating_scale=(0,1)))
     val_data = Dataset.load_from_df(test_df, reader=Reader(rating_scale=(0,1)))

@@ -19,6 +19,8 @@ from models import common_funcs
 ################################################################################
 
 def get_svd_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
+    train_df = train_df.iloc[:int(len(train_df) / 3)] # RAM ISSUES
+
     # build surprise datasets
     train_data = Dataset.load_from_df(train_df, reader=Reader(rating_scale=(0,1)))
     val_data = Dataset.load_from_df(test_df, reader=Reader(rating_scale=(0,1)))
