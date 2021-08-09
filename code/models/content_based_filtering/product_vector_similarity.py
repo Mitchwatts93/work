@@ -15,7 +15,7 @@ from models import common_funcs
 
 from processing import data_loading
 
-from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.pipeline import FeatureUnion
@@ -49,14 +49,14 @@ def encode_products():
     product_df["onSale"] = product_df["onSale"].astype('category')
 
     product_df["dateOnSite"] = pd.to_datetime(product_df.dateOnSite, errors='coerce')
-    product_df.dateOnSite.fillna(product_df.dateOnSite.median(), inplace=True)
+    product_df.dateOnSite.fillna(product_df.dateOnSite.mean(), inplace=True)
     product_df["days_on_site"] = (product_df["dateOnSite"] - product_df["dateOnSite"].min()).dt.days
 
     # could bin prices?
 
     enc = ColumnTransformer([
         ("categorical", OneHotEncoder(), ['brand', 'productType', 'onSale']),
-        ("numerical", OrdinalEncoder(), ['price','days_on_site']),
+        ("numerical", StandardScaler(), ['price','days_on_site']), # TODO standard scale them!
     ])
     
     encoded_products = enc.fit_transform(product_df)

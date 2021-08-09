@@ -15,7 +15,7 @@ from models import common_funcs
 
 from processing import data_loading
 
-from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
@@ -50,9 +50,13 @@ def encode_customer():
     customer_df["isFemale"] = customer_df["isFemale"].astype('category')
     customer_df["country"] = customer_df["country"].astype('category')
     customer_df["isPremier"] = customer_df["isPremier"].astype('category')
-    customer_df["yearOfBirth"] = customer_df["yearOfBirth"].astype('category')
+    customer_df["yearOfBirth"] = customer_df["yearOfBirth"].astype('category') # TODO needs to be standard scaled and kept as a float
 
-    enc = OneHotEncoder()
+    #enc = OneHotEncoder()
+    enc = ColumnTransformer([
+        ("categorical", OneHotEncoder(), ['isFemale', 'country', 'isPremier']),
+        ("numerical", StandardScaler(), ['yearOfBirth']), # TODO standard scale them!
+    ])
     encoded_customers = enc.fit_transform(customer_df)
 
     return row_lookup, encoded_customers

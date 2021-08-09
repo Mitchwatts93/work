@@ -34,6 +34,9 @@ for pred_file in os.listdir(constants.PREDICTIONS_PATH):
     class_separation_plot(pred_df=pred_df, save_label=save_path)
 
     save_path = os.path.join(constants.PLOTS_PATH, f"prec_rec_{pred_file.split('.')[0]}.png")
+    print(save_path)
+    if preds.isnull().any().any() or val.isnull().any().any():
+        breakpoint()
     precision_recall_plot(preds=preds.purchased.values, targs=val.purchased.values, save_label=save_path)
 
     # save_path = os.path.join(constants.PLOTS_PATH, f"roc_{pred_file.split('.')[0]}.png")
