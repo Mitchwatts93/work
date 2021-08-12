@@ -96,7 +96,7 @@ def main():
     breakpoint()
 
     val_df = val_df[(val_df.customerId.isin(train_df.customerId)) & (val_df.productId.isin(train_df.productId))]
-    preds = model_without_features.predict(val_df.customerId, val_df.productId)
+    preds = model_without_features.predict(val_df.customerId.map(user_to_index_mapping).values, val_df.productId.map(item_to_index_mapping).values)
     breakpoint()
 
 

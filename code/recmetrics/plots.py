@@ -1,14 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import plotly.graph_objects as go
 import seaborn as sns
-from funcsigs import signature
+from funcsigs import signature # TODO this is an issue
 from matplotlib.lines import Line2D
-from sklearn.metrics import (auc, average_precision_score,
-                             precision_recall_curve, roc_curve)
+from sklearn.metrics import (average_precision_score,
+                             precision_recall_curve)
 
 
+# TODO delete this func?
 def long_tail_plot(df, item_id_column, interaction_type, percentage=None, x_labels=True, save_label="long_tail.png"):
     """
     Plots the long tail for a user-item interaction dataset.
@@ -85,157 +84,6 @@ def long_tail_plot(df, item_id_column, interaction_type, percentage=None, x_labe
     plt.close()
 
 
-def coverage_plot(coverage_scores: list, model_names: list) -> None:
-    """
-    Plots the coverage for a set of models to compare.
-    ----------
-    coverage_scores: list
-        list of coverage scores in same order as model_names
-        example: [0.17, 0.25, 0.76]
-    model_names: list
-        list of model names in same order as coverage_scores
-        example: ['Model A', 'Model B', 'Model C']
-    Returns:
-    -------
-        A coverage plot
-    """
-    #create palette
-    recommender_palette = ["#ED2BFF", "#14E2C0", "#FF9F1C", "#5E2BFF","#FC5FA3"]
-    sns.set_palette(recommender_palette)
-
-    #make barplot
-    ax = sns.barplot(x=model_names, y=coverage_scores)
-
-    #set labels
-    ax.set_title('Catalog Coverage in %')
-    ax.set_ylabel('coverage')
-
-    plt.show()
-
-def personalization_plot(personalization_scores: list, model_names: list) -> None:
-    """
-    Plots the personalization for a set of models to compare.
-    ----------
-    personalization_scores: list
-        list of personalization scores in same order as model_names
-        example: [0.13, 0.52, 0.36]
-    model_names: list
-        list of model names in same order as coverage_scores
-        example: ['Model A', 'Model B', 'Model C']
-    Returns:
-    -------
-        A personalization plot
-    """
-    #create palette
-    recommender_palette = ["#ED2BFF", "#14E2C0", "#FF9F1C", "#5E2BFF","#FC5FA3"]
-    sns.set_palette(recommender_palette)
-
-    #make barplot
-    ax = sns.barplot(x=model_names, y=personalization_scores)
-
-    #set labels
-    ax.set_title("Personalization in %")
-    ax.set_ylabel("personalization")
-
-    plt.show()
-
-def intra_list_similarity_plot(intra_list_similarity_scores, model_names):
-    """
-    Plots the intra-list similarity for a set of models to compare.
-    ----------
-    intra_list_similarity_scores: list
-        list of intra-list similarity scores in same order as model_names
-        example: [0.13, 0.52, 0.36]
-    model_names: list
-        list of model names in same order as coverage_scores
-        example: ['Model A', 'Model B', 'Model C']
-    Returns:
-    -------
-        A intra-list similarity plot
-    """
-    #create palette
-    recommender_palette = ["#ED2BFF", "#14E2C0", "#FF9F1C", "#5E2BFF","#FC5FA3"]
-    sns.set_palette(recommender_palette)
-
-    #make barplot
-    ax = sns.barplot(x=model_names, y=intra_list_similarity_scores)
-
-    #set labels
-    ax.set_title("Similarity in %")
-    ax.set_ylabel("similarity in %")
-
-    plt.show()
-
-def mark_plot(mark_scores, model_names, k_range):
-    """
-    Plots the mean average recall at k for a set of models to compare.
-    ----------
-    mark_scores: list of lists
-        list of list of mar@k scores over k. This list is in same order as model_names
-        example: [[0.17, 0.25, 0.76],[0.2, 0.5, 0.74]]
-    model_names: list
-        list of model names in same order as coverage_scores
-        example: ['Model A', 'Model B']
-    k_range: list
-        list or array indeitifying all k values in order
-        example: [1,2,3,4,5,6,7,8,9,10]
-    Returns:
-    -------
-        A mar@k plot
-    """
-    #create palette
-    recommender_palette = ["#ED2BFF", "#14E2C0", "#FF9F1C", "#5E2BFF","#FC5FA3"]
-    sns.set_palette(recommender_palette)
-
-    #lineplot
-    mark_df = pd.DataFrame(np.column_stack(mark_scores), k_range, columns=model_names)
-    ax = sns.lineplot(data=mark_df)
-    plt.xticks(k_range)
-    plt.setp(ax.lines,linewidth=5)
-
-    #set labels
-    ax.set_title('Mean Average Recall at K (MAR@K) Comparison')
-    ax.set_ylabel('MAR@K')
-    ax.set_xlabel('K')
-
-    plt.show()
-
-
-def mapk_plot(mapk_scores, model_names, k_range):
-    """
-    Plots the mean average precision at k for a set of models to compare.
-    ----------
-    mapk_scores: list of lists
-        list of list of map@k scores over k. This lis is in same order as model_names
-        example: [[0.17, 0.25, 0.76],[0.2, 0.5, 0.74]]
-    model_names: list
-        list of model names in same order as coverage_scores
-        example: ['Model A', 'Model B']
-    k_range: list
-        list or array indeitifying all k values in order
-        example: [1,2,3,4,5,6,7,8,9,10]
-    Returns:
-    -------
-        A map@k plot
-    """
-    #create palette
-    recommender_palette = ["#ED2BFF", "#14E2C0", "#FF9F1C", "#5E2BFF","#FC5FA3"]
-    sns.set_palette(recommender_palette)
-
-    #lineplot
-    mapk_df = pd.DataFrame(np.column_stack(mapk_scores), k_range, columns=model_names)
-    ax = sns.lineplot(data=mapk_df)
-    plt.xticks(k_range)
-    plt.setp(ax.lines,linewidth=5)
-
-    #set labels
-    ax.set_title('Mean Average Precision at K (MAP@K) Comparison')
-    ax.set_ylabel('MAP@K')
-    ax.set_xlabel('K')
-    plt.show()
-
-
-
 def class_separation_plot(pred_df, n_bins=150, threshold=None, figsize=(10,6), title=None, save_label='class_sep.png'):
     """
     Plots the predicted class probabilities for multiple classes.
@@ -278,52 +126,6 @@ def class_separation_plot(pred_df, n_bins=150, threshold=None, figsize=(10,6), t
     plt.savefig(save_label)
     plt.close()
 
-def roc_plot(actual, model_probs, model_names, figsize=(10,10), save_label='roc.png'):
-    """
-    Receiver Operating Characteristic Plot. Can plot multiple models.
-    ----------
-    actual: array of dataframe of true classes assignements.
-        example:
-        [1,1,0,1,0]
-    model_probs: list of arrays
-        a list containing classification probabilites for each model in order.
-        example:
-        model_probs = [class_probs_1, class_probs_2]
-    model_names: list of strings
-        a list containing names for each model in order.
-        example:
-        model_names = ["GBT", "Logistic Regression"]
-    figsize: size of figure
-    Returns:
-    -------
-        Receiver Operating Characteristic Plot with AUC in the legend.
-    """
-    model_names = make_listy(model_names)
-    if not is_listy(model_probs): model_probs = [model_probs]
-
-    if len(model_names) > 5:
-        return ValueError("Can only compare 5 models or less.")
-
-    colors = ["#ED2BFF", "#14E2C0", "#FF9F1C", "#5E2BFF","#FC5FA3"]
-
-    for m in range(len(model_names)):
-        fpr, tpr, _ = roc_curve(actual, model_probs[m])
-        roc_auc = auc(fpr, tpr)
-        ax = sns.lineplot(x=fpr,
-                          y=tpr,
-                          lw=2,
-                          color=colors[m],
-                          label = model_names[m] + ' AUC = %0.4f' % roc_auc)
-    
-    ax.plot([0, 1], [0, 1], 'r--')
-    ax.set_title('Receiver Operating Characteristic Plot')
-    ax.set_ylabel('True Positive Rate')
-    ax.set_xlabel('False Positive Rate')
-    
-    #plt.show()
-    plt.savefig(save_label)
-    plt.close()
-
 
 def precision_recall_plot(targs, preds, figsize=(6,6), save_label='precrec.png'):
     """
@@ -357,57 +159,3 @@ def precision_recall_plot(targs, preds, figsize=(6,6), save_label='precrec.png')
     plt.savefig(save_label)
     plt.close()
 
-
-def make_listy(p):
-    if isinstance(p, str): return [p]
-    try:
-        _ = iter(p)
-    except TypeError:
-        p = [p]
-    return p
-
-
-def is_listy(x): return isinstance(x, (tuple,list))
-
-def metrics_plot(model_names, coverage_scores, personalization_scores, intra_list_similarity_scores):
-
-    """
-    Plots the coverage, personalization and intra-list similarity for a set of models to compare.
-    ----------
-    model_names: list
-        list of model names in same order as coverage_scores
-        example: ['Model A', 'Model B', 'Model C']
-    coverage_scores: list
-        list of scores in same order as model_names
-        example: [0.17, 0.25, 0.76]
-    personalization_scores: list
-        list of scores in same order as model_names
-        example: [0.43, 0.23, 0.44]
-    intra_list_similarity: list
-        list of scores in same order as model_names
-        example: [0.23, 0.21, 0.69]
-    Returns:
-    -------
-        An interactive metrics plot
-    """
-
-    fig = go.Figure()
-
-    for model_name, coverage, personalization, intra_list_similarity in zip(model_names, coverage_scores, personalization_scores, intra_list_similarity_scores):
-        fig.add_trace(go.Scatterpolar(
-              r=[coverage, personalization * 100, intra_list_similarity * 100],
-              theta=['coverage','personalization','intra list similarity'],
-              fill='tonext',
-              name=model_name
-        ))
-
-    fig.update_layout(
-      polar=dict(
-        radialaxis=dict(
-          visible=True,
-          range=[0, 100]
-        )),
-      showlegend=True
-    )
-
-    fig.show()
