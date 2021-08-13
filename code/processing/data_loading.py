@@ -1,3 +1,5 @@
+"""functions to load raw data
+"""
 import os, sys
 import pandas as pd
 
@@ -27,39 +29,41 @@ def get_data_df(filepath: os.PathLike) -> pd.DataFrame:
 ################################################################################
 
 def get_views_df() -> pd.DataFrame:
-    """load the products data as a pd dataframe"""
+    """returns the views data as a pd dataframe"""
     df = get_data_df(constants.VIEWS_PATH)
     df['date'] = processors.convert_to_datetime(df['date'])
     return df
 
 
 def get_purchases_df() -> pd.DataFrame:
-    """load the products data as a pd dataframe"""
+    """returns the purchases data as a pd dataframe"""
     df = get_data_df(constants.PURCHASES_PATH)
-    df['date'] = processors.convert_to_datetime(df['date']) # timezone is blank because I assume utc - I could check customerId and get a country for each time, but I'm assuming its all utc
+    df['date'] = processors.convert_to_datetime(df['date']) # timezone is blank 
+    # because I assume utc - I could check customerId and get a country for 
+    # each time, but I'm assuming its all utc
     return df
 
 
 def get_products_df() -> pd.DataFrame:
-    """load the products data as a pd dataframe"""
+    """returns the products data as a pd dataframe"""
     df = get_data_df(constants.PRODUCTS_PATH)
     return df
 
 
 def get_customers_df() -> pd.DataFrame:
-    """load the products data as a pd dataframe"""
+    """returns the customers data as a pd dataframe"""
     df = get_data_df(constants.CUSTOMERS_PATH)
     return df
 
 
 def get_labels_training_df() -> pd.DataFrame:
-    """load the products data as a pd dataframe"""
+    """returns the labels training data as a pd dataframe"""
     df = get_data_df(constants.LABELS_TRAINING_PATH)
     return df
 
 
 def get_labels_predict_df() -> pd.DataFrame:
-    """load the products data as a pd dataframe"""
+    """returns the labels holdout data as a pd dataframe"""
     df = get_data_df(constants.LABELS_PREDICT_PATH)
     return df
 

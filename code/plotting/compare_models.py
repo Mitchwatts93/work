@@ -1,3 +1,6 @@
+"""short script to make a plot comparing all models for each metric of interest
+"""
+
 import os, sys
 import pandas as pd
 
@@ -12,7 +15,11 @@ sys.path.append(PDIR) # I couldn't be bothered with making it a package,
 from misc import constants
 from models import common_funcs
 
+################################################################################
+
 def main():
+    """load metrics dict, for each metric make barplot of all different models
+    """
     model_scores_dict = common_funcs.load_master_scores_dict(constants.VAL_SCORES_DICT)
     model_score_df = pd.DataFrame(model_scores_dict).T
 
