@@ -5,3 +5,6 @@ collaborative filtering has lots of zeros in the similarities
 i.e. the similarity of this product to previous purchases is often zeros
 is it literally just the cosine sim?
 maybe try a matrix facotrisation approach? so that theres some overlaps?
+
+
+change column name for saved values
