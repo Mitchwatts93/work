@@ -40,19 +40,19 @@ def get_SlopeOne_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndar
 
 ################################################################################
 
-def main():
+def main() -> None:
     model_name = "SlopeOne"
     dataset_being_evaluated = "val"
 
     predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_SlopeOne_probs, dataset_being_evaluated=dataset_being_evaluated)
     labels = common_funcs.get_labels(dataset_to_fetch=dataset_being_evaluated)
-    scores = common_funcs.get_scores(predictions, labels, model_name=model_name, dataset_being_evaluated=dataset_being_evaluated)
+    scores_dict = common_funcs.get_scores(predictions, labels, model_name=model_name, dataset_being_evaluated=dataset_being_evaluated)
     
-    if dataset_being_evaluated == "val":
-        common_funcs.add_scores_to_master_dict(scores, model_name=model_name, model_dict_path=constants.VAL_SCORES_DICT)
-    elif dataset_being_evaluated == "test":
-        common_funcs.add_scores_to_master_dict(scores, model_name=model_name, model_dict_path=constants.TEST_SCORES_DICT)
-
+    common_funcs.cache_scores_to_master_dict(
+        dataset_being_evaluated=dataset_being_evaluated,
+        scores_dict=scores_dict,
+        model_name=model_name
+    )
 ################################################################################
 
 if __name__ == "__main__":

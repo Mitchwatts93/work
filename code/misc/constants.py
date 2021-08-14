@@ -65,6 +65,10 @@ PLOTS_PATH = os.path.join(DATA_DIR, "plots") # path to dir to store plots
 class InputError(Exception):
     pass
 
+
+class IncorrectWeightError(Exception):
+    pass
+
 ################################################################################
 # default values
 

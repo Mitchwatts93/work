@@ -81,13 +81,32 @@ def get_scores(
     predictions: pd.DataFrame, 
     labels: pd.DataFrame, 
     model_name: str, 
-    dataset_being_evaluated: str = "val"
+    dataset_being_evaluated: str = "val",
+    cache: bool = True,
 ) -> Dict:
-    """"""
-    cache_path = os.path.join(constants.SCORES_PATH, f"{model_name}_{dataset_being_evaluated}.gzip")
+    """gets score dict either from cache or by computing it, and optionally caches it.
+    Args:
+        predictions: pd dataframe with predicted probabilities under column 
+            name constants.probabilities_str
+        labels: pd dataframe with purchase labels under column name 
+            constants.purchased_label_str
+        model_name: string for model name to save/load scores from cache
+        dataset_being_evaluated: train, val or test string, to indicate which 
+            dataset is being evaluated
+        cache: bool to indicate whether to cache values if they are not 
+            currently cached
+    Returns:
+        scores_dict: dictionary containing metric scores for this model based 
+            on predictions and labels.
+    """
+    cache_path = os.path.join(
+        constants.SCORES_PATH, 
+        f"{model_name}_{dataset_being_evaluated}.gzip"
+    )
     scores_dict = load_or_make_wrapper(
         maker_func=get_metric_dict, 
-        filepath=cache_path, cache=True, 
+        filepath=cache_path, 
+        cache=cache, 
         predictions=predictions,
         labels=labels,
     )
@@ -96,7 +115,7 @@ def get_scores(
 ################################################################################
 
 def load_master_scores_dict(model_dict_path: os.PathLike) -> Dict:
-    """"""
+    """load the dict containing all scores for each model."""
     if not os.path.isfile(model_dict_path):
         return {}
     # Read data from file:
@@ -105,7 +124,7 @@ def load_master_scores_dict(model_dict_path: os.PathLike) -> Dict:
 
 
 def save_master_scores_dict(dict: Dict, model_dict_path: os.PathLike) -> None:
-    """"""
+    """save the dict containing scores for all models"""
     # Serialize data into file:
     json.dump(dict, open(model_dict_path, 'w'), indent=4)
 
@@ -116,7 +135,7 @@ def add_scores_to_master_dict(
     model_name: str, 
     model_dict_path: os.PathLike = constants.VAL_SCORES_DICT
 ) -> None:
-    """"""
+    """add this score dict to the existing master score dict. and recache"""
     master_dict = load_master_scores_dict(model_dict_path)
     master_dict[model_name] = scores_dict
     save_master_scores_dict(master_dict, model_dict_path)
@@ -128,7 +147,8 @@ def cache_scores_to_master_dict(
     scores_dict: Dict, 
     model_name: str
 ) -> None:
-    """"""
+    """cache the model to the master scores dict depending on whether it is val 
+    or test set."""
     if dataset_being_evaluated == "val":
         add_scores_to_master_dict(
             scores_dict, 

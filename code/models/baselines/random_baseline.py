@@ -18,7 +18,7 @@ from models import common_funcs
 
 def get_purchase_probabilities(
     train_df: pd.DataFrame, test_df: pd.DataFrame
-) -> np.ndarray:
+) -> pd.DataFrame:
     """just set all the predicted probabilities as random floats [0-1] of the 
     correct shape
     Args:
