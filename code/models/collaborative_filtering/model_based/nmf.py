@@ -5,7 +5,6 @@ from surprise import Dataset
 from surprise import Reader
 from surprise.prediction_algorithms.matrix_factorization import NMF
 
-import numpy as np
 import pandas as pd
 
 import os, sys

@@ -3,7 +3,6 @@ recmetrics package. That package didn't install nicely with pip, so I have
 just put the functions I wanted here"""
 import matplotlib.pyplot as plt
 import seaborn as sns
-#from funcsigs import signature # TODO this is an issue
 from sklearn.metrics import (average_precision_score,
                              precision_recall_curve)
 

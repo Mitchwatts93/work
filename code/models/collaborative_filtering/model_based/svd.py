@@ -3,7 +3,6 @@ from surprise import Dataset
 from surprise import Reader
 from surprise import SVD
 
-import numpy as np
 import pandas as pd
 
 import os, sys

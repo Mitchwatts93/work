@@ -3,7 +3,6 @@ from surprise import Dataset
 from surprise import Reader
 from surprise.prediction_algorithms.co_clustering import CoClustering
 
-import numpy as np
 import pandas as pd
 
 import os, sys

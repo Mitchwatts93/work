@@ -444,7 +444,6 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
     test_dataset = tf.data.Dataset.from_tensor_slices((test_df_mapped[feature_cols].values, test_df_mapped.purchased.values))
     test_dataset = test_dataset.batch(BATCH_SIZE) # no shuffle!
     predictions = model.predict(test_dataset)
-    import ipdb;ipdb.set_trace()
     test_df['purchased'] = predictions # NOTE: same name column as labels
 
 

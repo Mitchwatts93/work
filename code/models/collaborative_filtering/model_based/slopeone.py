@@ -4,7 +4,6 @@ from surprise import Dataset
 from surprise import Reader
 from surprise.prediction_algorithms.slope_one import SlopeOne
 
-import numpy as np
 import pandas as pd
 
 import os, sys
