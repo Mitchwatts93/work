@@ -20,16 +20,26 @@ from misc import constants
 from models import common_funcs
 
 ################################################################################
+
 def trim_train_test_dfs(
     train_df: pd.DataFrame, test_df: pd.DataFrame
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """trim the datasets due to ram issues, and due to missing product or 
+    customer indices from train or test df"""
+
     train_df = train_df.iloc[:int(len(train_df) / 3)] # RAM ISSUES
+
     # discard items and products which have all zeros
     # as surprise package struggles with these
-    product_counts = train_df.groupby(constants.product_id_str)[constants.purchased_label_str].sum()
+    product_counts = train_df.groupby(
+            constants.product_id_str
+        )[constants.purchased_label_str].sum()
     valid_products = product_counts[product_counts > 0].index
-    customer_counts = train_df.groupby(constants.customer_id_str)[constants.purchased_label_str].sum()
+    customer_counts = train_df.groupby(
+            constants.customer_id_str
+        )[constants.purchased_label_str].sum()
     valid_customers = customer_counts[customer_counts > 0].index
+
     # trim the datasets
     train_df = train_df[
         (train_df[constants.customer_id_str].isin(valid_customers)) & \
@@ -39,11 +49,17 @@ def trim_train_test_dfs(
         (test_df[constants.customer_id_str].isin(valid_customers)) &\
              (test_df[constants.product_id_str].isin(valid_products))
     ] # trim the df down, because if not in the set, it fails
+
     return train_df, test_df
 
 ################################################################################
 
-def get_NMF_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
+def get_NMF_probs(
+    train_df: pd.DataFrame, test_df: pd.DataFrame
+) -> pd.DataFrame:
+    """fit nmf model using train_df and then make predictions on test_df"""
+
+    # trim the dfs because of product and customer id issues with algorithm
     train_df, test_df = trim_train_test_dfs(train_df=train_df, test_df=test_df)
 
     # build surprise datasets

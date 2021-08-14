@@ -19,8 +19,13 @@ from models import common_funcs
 
 ################################################################################
 
-def get_svd_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
-    train_df = train_df.iloc[:int(len(train_df) / 3)] # RAM ISSUES
+def get_svd_probs(
+    train_df: pd.DataFrame, test_df: pd.DataFrame
+) -> pd.DataFrame:
+    """fit svd model to train_df and then predict on test_df"""
+
+    train_df = train_df.iloc[:int(len(train_df) / 3)] # RAM ISSUES so just 
+    # sample first third
 
     # build surprise datasets
     train_data = Dataset.load_from_df(

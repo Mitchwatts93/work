@@ -21,7 +21,10 @@ from models import common_funcs
 
 def get_CoClustering_probs(
     train_df: pd.DataFrame, test_df: pd.DataFrame
-) -> np.ndarray:
+) -> pd.DataFrame:
+    """train coclustering model using surprise package. once fitted make 
+    predictions on the test set"""
+    
     # build surprise datasets
     train_data = Dataset.load_from_df(
         train_df, 

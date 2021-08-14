@@ -22,7 +22,8 @@ from models import common_funcs
 
 def get_SlopeOne_probs(
     train_df: pd.DataFrame, test_df: pd.DataFrame
-) -> np.ndarray:
+) -> pd.DataFrame:
+    """fit slopeone model to train_df and then make predictions on test_df"""
     # build surprise datasets
     train_df = train_df.iloc[:int(len(train_df) / 3)] # RAM ISSUES
     train_data = Dataset.load_from_df(
@@ -37,7 +38,6 @@ def get_SlopeOne_probs(
 
     # make predictions
     probs = algo.test(val_data.build_full_trainset().build_testset())
-
     df = pd.DataFrame(probs)
     predictions = df.est.values
 

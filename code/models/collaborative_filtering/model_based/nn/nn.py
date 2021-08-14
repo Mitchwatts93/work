@@ -42,6 +42,7 @@ NN_PLOT_DIR = os.path.join(CDIR, "nn_plots")
 def plot_metrics_and_loss_learning(
     history: keras.callbacks.History, model_name_str: str
 ) -> None:
+    """just plotting losses and metrics stored in history object"""
 
     plt.plot(history.history['loss'], label='train')
     plt.plot(history.history['val_loss'], label='val')
@@ -87,6 +88,23 @@ def construct_train_dataset(
     shuffle_frac: float = DEFAULT_SHUFFLE_FRAC,
     prefetch_n: int = DEFAULT_PREFETCH
 ) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
+    """construct the trianing dataset for features and labels. if balancing, 
+    then do so by oversampling the rarer class - i.e. by making the class 
+    balance according to the positive and negative labels.
+    Args:
+        balance_dataset: bool to decide whether to balance the dataset or not
+        train_df: df to train on 
+        val_df: df for early stopping
+        pos_weight: positive class weight [0-1], pos_weight+neg_weight must = 1
+        neg_weight: negative class weight [0-1], pos_weight+neg_weight must = 1
+        batch_size: batch size for training
+        shuffle_frac: what proportion of the dataset size should be set as 
+            shuffle buffer
+        prefetch_n: how many batches to prefetch when training
+    Returns:
+        train_dataset, val_dataset: tf datasets for train and val set - ready
+            to be used in .fit method
+    """
     # NOTE: we have an imbalanced dataset, rather than use class-weights, I'll use oversampling, as this will be a smoother evolution (more positive samples in each batch rather than one heavily weighted sample)
 
     if pos_weight + neg_weight != 1:
@@ -165,6 +183,8 @@ def construct_train_dataset(
 
 
 def get_default_bias(train_df: pd.DataFrame) -> float:
+    """the bias to set on the final nn layer - according to the bias in the 
+    class labels"""
     # set the bias manually to speed up learning
     n_pos = len(train_df[train_df.loc[:, constants.purchased_label_str]])
     n_neg = len(train_df[~train_df.loc[:, constants.purchased_label_str]])
@@ -180,6 +200,19 @@ def train_model(
     pos_weight: float = DEFAULT_CLASS_WEIGHTING, 
     neg_weight: float = DEFAULT_CLASS_WEIGHTING,
 ) -> Tuple[keras.Model, keras.callbacks.History]:
+    """train the model on train_df, return the model and history object
+    Args:
+        learning_rate: learning rate for fitting
+        balance_dataset: bool to decide whether to balance the dataset or not
+        train_df: df to train on 
+        val_df: df for early stopping
+        pos_weight: positive class weight [0-1], pos_weight+neg_weight must = 1
+        neg_weight: negative class weight [0-1], pos_weight+neg_weight must = 1
+        batch_size: batch size for training
+    Returns:
+        model: trained keras model
+        history: history object from training
+    """
     # get the sizes the embeddings should be set to
     max_prod_ind = max(train_df.productId.max(), test_df.productId.max()) + 1
     max_cust_ind = max(train_df.customerId.max(), test_df.customerId.max()) + 1
@@ -239,6 +272,8 @@ def make_model_preds(
     test_df: pd.DataFrame, model: keras.Model, 
     batch_size: int = DEFAULT_BATCH_SIZE
 ) -> np.ndarray:
+    """construct dataset from test_df and used the passed model to make 
+    predictions"""
     test_dataset = tf.data.Dataset.from_tensor_slices(
         (
             test_df.loc[:,
@@ -262,7 +297,20 @@ def get_collaborative_nn_probs(
     pos_weight: float = DEFAULT_CLASS_WEIGHTING, 
     neg_weight: float = DEFAULT_CLASS_WEIGHTING,
 ) -> pd.DataFrame:
-    """"""
+    """train a nn for collaborative filtering (i.e. trained embeddings plus FC 
+    layers) and then make predictions for the test set.
+    Args:
+        model_name_str: name to save model predictions to cache/load from later
+        balance_dataset: bool to decide whether to balance the dataset or not
+        learning_rate: learning rate for fitting
+        train_df: df to train on 
+        test_df: df to make predictions with
+        pos_weight: positive class weight [0-1], pos_weight+neg_weight must = 1
+        neg_weight: negative class weight [0-1], pos_weight+neg_weight must = 1
+        batch_size: batch size for training
+    Returns:
+        test_df: same as input but with predictions now instead of labels
+    """
 
     # setup devices. only using 1 gpu, edit for more or for none.
     physical_devices = tf.config.list_physical_devices('GPU')[:1]
@@ -294,7 +342,6 @@ def get_collaborative_nn_probs(
 ################################################################################
 
 def main() -> None:
-    """"""
     model_name = "coll_nn_deep_unbalanced"
     dataset_being_evaluated = "val"
 

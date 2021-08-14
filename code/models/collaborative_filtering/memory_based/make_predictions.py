@@ -1,7 +1,6 @@
 """functions for making predictions using manual memory-based approach"""
 import os, sys
 from typing import Dict
-import argparse
 
 import pandas as pd
 import numpy as np
@@ -9,12 +8,14 @@ from tqdm import tqdm
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy import sparse
 
-################################################################################
-
 CDIR = os.path.dirname(os.path.abspath(__file__))
-PDIR = os.path.dirname(CDIR)
-PPDIR = os.path.dirname(PDIR)
-PPPDIR = os.path.dirname(PPDIR)
+PPPDIR = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(
+            CDIR
+        )
+    )
+)
 
 sys.path.append(PPPDIR) # I couldn't be bothered with making it a package, 
 # so I'm doing this to make sure imports work when run from anywhere
@@ -22,7 +23,6 @@ sys.path.append(PPPDIR) # I couldn't be bothered with making it a package,
 from processing.purchases import get_purchases_df
 from processing import split_data
 from misc import caching, constants
-
 
 ################################################################################
 
