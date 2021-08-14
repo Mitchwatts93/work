@@ -1,6 +1,6 @@
 """functions for making predictions using manual memory-based approach"""
 import os, sys
-from typing import Dict
+from typing import Dict, Tuple
 
 import pandas as pd
 import numpy as np
@@ -32,7 +32,7 @@ def get_co_occurance_df(purchases_df: pd.DataFrame) -> pd.DataFrame:
     return co_occurances
 
 
-def make_sparse_utility_matrix(co_occurances_df: pd.DataFrame) -> sparse.csr_matrix:
+def make_sparse_utility_matrix(co_occurances_df: pd.DataFrame) -> Tuple[sparse.csr_matrix, pd.Series, pd.Series]:
     col_product_labels = co_occurances_df.productId.unique()
     col_ind_dict = dict(zip(col_product_labels, range(len(co_occurances_df))))
 
@@ -52,7 +52,7 @@ def make_sparse_utility_matrix(co_occurances_df: pd.DataFrame) -> sparse.csr_mat
     return sparse_utility_mat, row_product_labels, col_customer_labels
 
 
-def make_similarity_matrix():
+def make_similarity_matrix() -> Tuple[sparse.csr_matrix, pd.Series]:
     train_purchases, _val_purchases, _test_purchases = split_data.get_split_purchases_df()
     co_occurances_df = get_co_occurance_df(train_purchases)
     sparse_utility_mat, row_product_labels, _col_customer_labels = get_sparse_utility_matrix(co_occurances_df)
@@ -66,7 +66,7 @@ def make_similarity_matrix():
 ################################################################################
 
 
-def get_sparse_utility_matrix(co_occurances_df: pd.DataFrame) -> sparse.coo_matrix:
+def get_sparse_utility_matrix(co_occurances_df: pd.DataFrame) -> Tuple[sparse.csr_matrix, pd.Series, pd.Series]:
     cache_filepath = os.path.join(
         constants.MODEL_FILES_DIR, 
         'collaborative_filtering', 
@@ -79,7 +79,7 @@ def get_sparse_utility_matrix(co_occurances_df: pd.DataFrame) -> sparse.coo_matr
     return sim_matrix, col_product_labels, row_customer_labels
 
 
-def get_similarity_matrix():
+def get_similarity_matrix() -> Tuple[np.ndarray, pd.Series]:
     cache_filepath = os.path.join(
         constants.MODEL_FILES_DIR, 
         'collaborative_filtering', 
@@ -92,14 +92,14 @@ def get_similarity_matrix():
 
 ################################################################################
 
-def get_customer_previous_purchases(customerId):
+def get_customer_previous_purchases(customerId: int) -> np.ndarray:
     purchases_df = get_purchases_df()
 
     previous_product_ids = purchases_df[purchases_df['customerId'] == customerId]['productId'].to_numpy()
     return previous_product_ids
 
 
-def make_pred(sim_mat, sim_mat_labels, previous_product_ids, new_product_id):
+def make_pred(sim_mat: sparse.csr_matrix, sim_mat_labels: pd.Series, previous_product_ids: np.ndarray, new_product_id: int) -> float:
     old_product_inds = [np.argwhere(np.array(sim_mat_labels) == p_label) for p_label in previous_product_ids]
     new_product_ind = np.argwhere(np.array(sim_mat_labels) == new_product_id)
 
@@ -122,29 +122,10 @@ def are_args_valid(args_dict: Dict) -> bool:
         return True
 
 
-def main():
-    """
-    parser = argparse.ArgumentParser(description='get predictions for '
-        'memory-based collaborative filtering algorithm')
-    parser.add_argument('--filepath',  '-f', type=str, default=None,
-                        help='absolute path to file to be evaluated. file must '
-                        'be csv with the header: customerId, productid')
-    parser.add_argument('--customerId', '-cid', type=int, default=None,
-                        help='absolute path to file to be evaluated. file must '
-                        'be csv with the header: customerId, productid')
-    parser.add_argument('--productId', '-pid', type=int, default=None,
-                        help='absolute path to file to be evaluated. file must '
-                        'be csv with the header: customerId, productid')
-    args_dict = parser.parse_args()
+################################################################################
 
-    if not are_args_valid(args_dict):
-        raise constants.InputError("the inputs are invalid")
-
-    """
-
-
+def main() -> None:
     sim_mat, product_labels = get_similarity_matrix()
-
     
     _train_labels_training, val_labels_training, test_labels_training = split_data.get_split_labels_training_df()
 
