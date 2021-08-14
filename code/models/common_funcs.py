@@ -1,3 +1,4 @@
+"""functions useful for all model training"""
 from typing import Callable, Dict
 import json
 import os, sys

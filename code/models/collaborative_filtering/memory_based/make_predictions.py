@@ -1,3 +1,4 @@
+"""functions for making predictions using manual memory-based approach"""
 import os, sys
 from typing import Dict
 import argparse

@@ -1,3 +1,4 @@
+"""functions for training and making predictions using coclustering algorithm"""
 from surprise import Dataset
 from surprise import Reader
 from surprise.prediction_algorithms.co_clustering import CoClustering
@@ -18,10 +19,18 @@ from models import common_funcs
 
 ################################################################################
 
-def get_CoClustering_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
+def get_CoClustering_probs(
+    train_df: pd.DataFrame, test_df: pd.DataFrame
+) -> np.ndarray:
     # build surprise datasets
-    train_data = Dataset.load_from_df(train_df, reader=Reader(rating_scale=(0,1)))
-    val_data = Dataset.load_from_df(test_df, reader=Reader(rating_scale=(0,1)))
+    train_data = Dataset.load_from_df(
+        train_df, 
+        reader=Reader(rating_scale=(0,1))
+    )
+    val_data = Dataset.load_from_df(
+        test_df, 
+        reader=Reader(rating_scale=(0,1))
+    )
 
     # fit model
     algo = CoClustering()
@@ -33,7 +42,7 @@ def get_CoClustering_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.
     predictions = df.est.values
 
     # save predictions in df
-    test_df['purchased'] = predictions # NOTE: same name column as labels
+    test_df.loc[:, constants.probabilities_str] = predictions
     return test_df
 
 ################################################################################
@@ -42,9 +51,18 @@ def main() -> None:
     model_name = "CoClustering"
     dataset_being_evaluated = "val"
 
-    predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_CoClustering_probs, dataset_being_evaluated=dataset_being_evaluated)
+    predictions = common_funcs.generate_and_cache_preds(
+        model_name=model_name, 
+        model_fetching_func=get_CoClustering_probs, 
+        dataset_being_evaluated=dataset_being_evaluated
+    )
     labels = common_funcs.get_labels(dataset_to_fetch=dataset_being_evaluated)
-    scores_dict = common_funcs.get_scores(predictions, labels, model_name=model_name, dataset_being_evaluated=dataset_being_evaluated)
+    scores_dict = common_funcs.get_scores(
+        predictions=predictions, 
+        labels=labels, 
+        model_name=model_name, 
+        dataset_being_evaluated=dataset_being_evaluated
+    )
     
     common_funcs.cache_scores_to_master_dict(
         dataset_being_evaluated=dataset_being_evaluated,
