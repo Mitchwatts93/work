@@ -21,32 +21,44 @@ from processing import data_loading
 ###############################################################################
 
 def engineer_product_features(product_df: pd.DataFrame) -> pd.DataFrame:
+    """feature engineering of product df.
+    TODO     
+    # could bin prices?
+    """
+    # select cols
     product_df = product_df[
         ['brand', 'price', 'productType', 'onSale', 'dateOnSite']
     ]
+    # fill nans
     product_df.fillna(product_df.median(), inplace=True)
 
-
+    # set bool types
     product_df.loc[:, "onSale"] = product_df.onSale.astype(bool)
 
+    # set types
     product_df["brand"] = product_df["brand"].astype('category')
     product_df["productType"] = product_df["productType"].astype('category')
     product_df["onSale"] = product_df["onSale"].astype('category')
 
+    # change to pd datetime
     product_df["dateOnSite"] = pd.to_datetime(
         product_df.dateOnSite, errors='coerce'
     )
+    # fill nan dates
     product_df.dateOnSite.fillna(product_df.dateOnSite.mean(), inplace=True)
+    # instead, get the number of days after the earliest date - to change to a 
+    # numerical feature that is useful
     product_df["days_on_site"] = (
             product_df["dateOnSite"] - product_df["dateOnSite"].min()
         ).dt.days
 
-    # could bin prices?
 
     return product_df
 
 
 def encode_products() -> Tuple[Dict, np.ndarray]:
+    """encode the product data as vectors, a row for each product"""
+
     product_df = data_loading.get_products_df() # get product info
 
     # form lookup dict for getting rows of encoded matrix based on product id
@@ -66,7 +78,6 @@ def encode_products() -> Tuple[Dict, np.ndarray]:
         ("categorical", OneHotEncoder(), ['brand', 'productType', 'onSale']),
         ("numerical", StandardScaler(), ['price','days_on_site']),
     ])
-    
     encoded_products = enc.fit_transform(product_df)
 
     return row_lookup, encoded_products
@@ -75,6 +86,7 @@ def encode_products() -> Tuple[Dict, np.ndarray]:
 def get_products_customer_bought(
     train_df: pd.DataFrame, customerId: int
 ) -> np.ndarray:
+    """get the product previously bought by customer == customerId"""
     productIds = train_df[
             train_df[constants.customer_id_str] == customerId
         ][constants.product_id_str].values
@@ -84,52 +96,76 @@ def get_products_customer_bought(
 def get_vector_content_sim_product_probs(
     train_df: pd.DataFrame, test_df: pd.DataFrame
 ) -> pd.DataFrame:
+    """get the similarity scores based on content vectors between products"""
+    
+    # get row lookup dict and encoded matrix of products
     row_lookup, encoded_products = encode_products()
 
+    # get a dictionary mapping products to any products that have previously 
+    # been bought that customer
     grouped_customers = train_df.groupby(constants.customer_id_str)
-    customer_product_dict = grouped_customers[
+    customer_product_mapping = grouped_customers[
         constants.product_id_str].apply(np.array).to_dict()
 
     # TODO vectorise
-    # TODO change variable names
     predictions = []
-    for i, row in tqdm(test_df.iterrows(), total=len(test_df)):
-        
+    for _, row in tqdm(test_df.iterrows(), total=len(test_df)):
+        # get product id for this customer product pair
         this_product_id = row[constants.product_id_str]
 
+        # if this product id isn't in our encoded products, then predict 
+        # default
         try:
             row_lookup[this_product_id]
         except KeyError:
-            predictions.append(0.5)
+            predictions.append(constants.default_value_missing)
             continue 
 
+        # get the vector for this product
         this_product_vector = encoded_products[
             row_lookup[this_product_id], :].toarray()
 
+        # check if the customer is in our customer-product dictionary
+        # if not, then just predict prob as the default
         try:
-            customer_product_dict[row[constants.product_id_str]]
+            customer_product_mapping[row[constants.product_id_str]]
         except KeyError:
-            predictions.append(0.5)
+            predictions.append(constants.default_value_missing)
             continue 
 
-        productIds = customer_product_dict[row[constants.customer_id_str]]
-        productIds = productIds[np.where(productIds != this_product_id)[0]]
+        # get the ids of products that have been bought by this customer before
+        productIds_bought_by_this_customer = customer_product_mapping[
+                row[constants.customer_id_str]
+            ]
+        productIds_bought_by_this_customer = productIds_bought_by_this_customer[
+            np.where(productIds_bought_by_this_customer != this_product_id)[0]
+        ] # filter out this product id though
 
-        if len(productIds) == 0:
-            predictions.append(0.5)
+        # if there are not product that have been bought, then just predict the 
+        # default
+        if len(productIds_bought_by_this_customer) == 0:
+            predictions.append(constants.default_value_missing)
             continue # no other customers have bought this product!
 
-        productIds = [id for id in productIds if id in row_lookup]
+        # filter out products that aren't encoded
+        productIds_bought_by_this_customer = [
+            id for id in productIds_bought_by_this_customer if id in row_lookup
+        ]
         
-        product_encoder_rows = [row_lookup[id] for id in productIds]
+        # get the vectors for those products
+        product_encoder_rows = [
+            row_lookup[id] for id in productIds_bought_by_this_customer
+        ]
         product_vectors = encoded_products[product_encoder_rows, :].toarray()
 
+        # get the similarity between each product and this product
         product_similarities = cosine_similarity(
             product_vectors, this_product_vector
         )
-        mean_sim = np.mean(product_similarities)
-        predictions.append(mean_sim)
+        mean_sim = np.mean(product_similarities) # average those similarities
+        predictions.append(mean_sim) # that is our prediction
    
+    # set column as predictions
     test_df.loc[:, constants.probabilities_str] = predictions
     return test_df
 
