@@ -1,44 +1,33 @@
+"""functions to get content-based filtering predicitons using customers."""
+from typing import Tuple, Dict
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.metrics.pairwise import cosine_similarity
 
 import os, sys
 
 CDIR = os.path.dirname(os.path.abspath(__file__))
 PPDIR = os.path.dirname(os.path.dirname(CDIR))
-
 sys.path.append(PPDIR) # I couldn't be bothered with making it a package, 
 # so I'm doing this to make sure imports work when run from anywhere
 
 from misc import constants
 from models import common_funcs
-
 from processing import data_loading
 
-from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 ################################################################################
 
-def encode_customer():
-    customer_df = data_loading.get_customers_df()
-
-    # add missing customer ids
-    #full_ids = np.arange(customer_df.customerId.max())
-    #missing_ids = np.setdiff1d(full_ids, customer_df.customerId)
-    #missing_vals = np.full(shape=(len(missing_ids), len(customer_df.columns)), fill_value=np.nan)
-    #missing_vals[:, 0] = missing_ids
-    #missing_ids_df = pd.DataFrame(data=missing_vals, columns=customer_df.columns)
-    #customer_df = pd.concat([customer_df, missing_ids_df])
-    #customer_df.loc[:, "customerId"] = customer_df.customerId.astype(int)
-
-    row_lookup = dict(zip(customer_df.customerId, range(len(customer_df)))) # faster for later - rather than use df so we can keep sparse encoded
-
+def engineer_customer_df_features(customer_df: pd.DataFrame) -> pd.DataFrame:
     customer_df = customer_df[['isFemale', 'country', 'yearOfBirth', 'isPremier']]
     customer_df.fillna(customer_df.median(), inplace=True)
 
+    # feature engineering
+    # TODO feature engineering:
+    # could encode country based on continent or similar? or at least additional
+    # feature?
 
     customer_df.loc[:, "isFemale"] = customer_df.isFemale.astype(bool)
     customer_df.loc[:, "isPremier"] = customer_df.isPremier.astype(bool)
@@ -52,31 +41,54 @@ def encode_customer():
     customer_df["isPremier"] = customer_df["isPremier"].astype('category')
     customer_df["yearOfBirth"] = customer_df["yearOfBirth"].astype('category') # TODO needs to be standard scaled and kept as a float
 
-    #enc = OneHotEncoder()
+    return customer_df
+
+
+def encode_customer() -> Tuple[Dict, np.ndarray]:
+    customer_df = data_loading.get_customers_df() # get the customers 
+    # information
+
+    # form lookup dict for getting rows of encoded matrix based on customer id
+    row_lookup = dict(zip(customer_df[constants.customer_id_str], range(len(customer_df)))) # 
+    # faster for later - rather than use df so we can keep sparse encoded
+
+    # feature engineering
+    customer_df = engineer_customer_df_features(customer_df)    
+
+    #encode the features, some as categorical, some as numerical
     enc = ColumnTransformer([
         ("categorical", OneHotEncoder(), ['isFemale', 'country', 'isPremier']),
-        ("numerical", StandardScaler(), ['yearOfBirth']), # TODO standard scale them!
+        ("numerical", StandardScaler(), ['yearOfBirth']),
     ])
     encoded_customers = enc.fit_transform(customer_df)
 
     return row_lookup, encoded_customers
 
 
-def get_customers_who_bought_product(train_df, productId):
-    customerIds = train_df[train_df.productId == productId]["customerId"].values
+def get_customers_who_bought_product(
+    train_df: pd.DataFrame, productId: int
+) -> np.ndarray:
+    customerIds = train_df[train_df[constants.product_id_str] == productId][constants.customer_id_str].values
     return customerIds
 
 
-def get_vector_content_sim_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
+def get_vector_content_sim_probs(
+    train_df: pd.DataFrame, test_df: pd.DataFrame
+) -> pd.DataFrame:
+
+    # get row lookup dict and encoded matrix of customers
     row_lookup, encoded_customers = encode_customer()
 
-    grouped_products = train_df.groupby('productId')
-    product_customer_dict = grouped_products['customerId'].apply(np.array).to_dict()
 
+    grouped_products = train_df.groupby(constants.product_id_str)
+    product_customer_dict = grouped_products[constants.customer_id_str].apply(np.array).to_dict()
+
+    # TODO vectorise
+    # TODO change variable names
     predictions = []
     for i, row in tqdm(test_df.iterrows(), total=len(test_df)):
         
-        this_customer_id = row.customerId
+        this_customer_id = row[constants.customer_id_str]
 
         try:
             row_lookup[this_customer_id]
@@ -87,48 +99,57 @@ def get_vector_content_sim_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) 
         this_customer_vector = encoded_customers[row_lookup[this_customer_id], :].toarray()
 
         try:
-            product_customer_dict[row.productId]
+            product_customer_dict[row[constants.product_id_str]]
         except KeyError:
             predictions.append(0.5)
             continue 
 
-        customerIds = product_customer_dict[row.productId]
-        customerIds = customerIds[np.where(customerIds != this_customer_id)[0]] # TODO add back in
+        customerIds = product_customer_dict[row[constants.product_id_str]]
+        customerIds = customerIds[np.where(customerIds != this_customer_id)[0]] 
 
         if len(customerIds) == 0:
             predictions.append(0.5)
             continue # no other customers have bought this product!
 
-        #customerIds =  np.random.choice(customerIds, 5, replace=True) # TODO remove this, just picking random 5 for now
         customerIds = [id for id in customerIds if id in row_lookup]
         
         customer_encoder_rows = [row_lookup[id] for id in customerIds]
         customer_vectors = encoded_customers[customer_encoder_rows, :].toarray()
 
-        # why are all the similarities so high?
-        #customer_similarities = np.dot(customer_vectors, this_customer_vector.reshape(-1))
-        customer_similarities = cosine_similarity(customer_vectors, this_customer_vector)
-        #customer_similarities = (np.dot(customer_vectors, this_customer_vector.reshape(-1)) / np.linalg.norm(this_customer_vector)) / np.linalg.norm(customer_vectors, axis=1)
+        customer_similarities = cosine_similarity(
+            customer_vectors, this_customer_vector
+        )
         mean_sim = np.mean(customer_similarities)
         predictions.append(mean_sim)
 
-    test_df['purchased'] = predictions # NOTE: same name column as labels
+
+    test_df.loc[:, constants.probabilities_str] = predictions # NOTE: same name column as labels
     return test_df
 
 ################################################################################
 
-def main():
+def main() -> None:
     model_name = "vector_content_sim_customer"
     dataset_being_evaluated = "val"
 
-    predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_vector_content_sim_probs, dataset_being_evaluated=dataset_being_evaluated)
+    predictions = common_funcs.generate_and_cache_preds(
+        model_name=model_name, 
+        model_fetching_func=get_vector_content_sim_probs, 
+        dataset_being_evaluated=dataset_being_evaluated
+    )
     labels = common_funcs.get_labels(dataset_to_fetch=dataset_being_evaluated)
-    scores = common_funcs.get_scores(predictions, labels, model_name=model_name, dataset_being_evaluated=dataset_being_evaluated)
+    scores_dict = common_funcs.get_scores(
+        predictions=predictions, 
+        labels=labels, 
+        model_name=model_name, 
+        dataset_being_evaluated=dataset_being_evaluated
+    )
     
-    if dataset_being_evaluated == "val":
-        common_funcs.add_scores_to_master_dict(scores, model_name=model_name, model_dict_path=constants.VAL_SCORES_DICT)
-    elif dataset_being_evaluated == "test":
-        common_funcs.add_scores_to_master_dict(scores, model_name=model_name, model_dict_path=constants.TEST_SCORES_DICT)
+    common_funcs.cache_scores_to_master_dict(
+        dataset_being_evaluated=dataset_being_evaluated,
+        scores_dict=scores_dict,
+        model_name=model_name
+    )
 
 ################################################################################
 

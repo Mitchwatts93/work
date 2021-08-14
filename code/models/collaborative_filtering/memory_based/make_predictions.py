@@ -1,4 +1,6 @@
 """functions for making predictions using manual memory-based approach"""
+
+# NOTE: NO LONGER USED
 import os, sys
 from typing import Dict, Tuple
 

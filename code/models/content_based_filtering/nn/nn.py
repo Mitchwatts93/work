@@ -1,28 +1,25 @@
-"""nn model functions"""
-
-from tensorflow import keras
-import tensorflow as tf
+"""functions to train and predict using nn models with content based inputs
+"""
+from typing import Tuple, Dict
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from typing import Tuple
+from tensorflow import keras
+import tensorflow as tf
 
 import os, sys
+
 CDIR = os.path.dirname(os.path.abspath(__file__))
-PPPPDIR = os.path.dirname(
-    os.path.dirname(
-        os.path.dirname(
-            os.path.dirname(CDIR)
-        )
-    )
-)
-sys.path.append(PPPPDIR) # I couldn't be bothered with making it a package, 
+PPPDIR = os.path.dirname(os.path.dirname(os.path.dirname(CDIR)))
+sys.path.append(PPPDIR) # I couldn't be bothered with making it a package, 
 # so I'm doing this to make sure imports work when run from anywhere
 
+from models.content_based_filtering import product_vector_similarity, customer_vector_similarity
 from misc import constants
 from models import common_funcs
-from models.collaborative_filtering.model_based.nn.nn_models import simple_NN, deep_NN
-from models.collaborative_filtering.model_based.nn.misc import lr_plotter
+from models.content_based_filtering.nn.misc import lr_plotter
+from models.content_based_filtering.nn.nn_models import simple_NN, deep_NN
+
 
 ################################################################################
 # constants
@@ -55,7 +52,7 @@ def plot_metrics_and_loss_learning(
     plt.plot(history.history['val_accuracy'], label='val')
     plt.legend()
     save_path = os.path.join(NN_PLOT_DIR, f"{model_name_str}_acc.png")
-    plt.savefig(save_path)
+    plt.savefigsave_path)
     plt.close()
 
     plt.plot(history.history['auc'], label='train')
@@ -78,6 +75,16 @@ def plot_metrics_and_loss_learning(
     save_path = os.path.join(NN_PLOT_DIR, f"{model_name_str}_recall.png")
     plt.savefig(save_path)
     plt.close()
+
+
+def get_default_bias(train_df: pd.DataFrame) -> float:
+    """the bias to set on the final nn layer - according to the bias in the 
+    class labels"""
+    # set the bias manually to speed up learning
+    n_pos = len(train_df[train_df.loc[:, constants.purchased_label_str]])
+    n_neg = len(train_df[~train_df.loc[:, constants.purchased_label_str]])
+    b0 = np.log([n_pos/n_neg])
+    return b0
 
 
 def construct_train_dataset(
@@ -182,14 +189,35 @@ def construct_train_dataset(
     return train_dataset, val_dataset
 
 
-def get_default_bias(train_df: pd.DataFrame) -> float:
-    """the bias to set on the final nn layer - according to the bias in the 
-    class labels"""
-    # set the bias manually to speed up learning
-    n_pos = len(train_df[train_df.loc[:, constants.purchased_label_str]])
-    n_neg = len(train_df[~train_df.loc[:, constants.purchased_label_str]])
-    b0 = np.log([n_pos/n_neg])
-    return b0
+def make_model_preds(
+    test_df: pd.DataFrame, model: keras.Model,
+    row_lookup_customers: Dict,
+    row_lookup_products: Dict,
+    batch_size: int = DEFAULT_BATCH_SIZE
+) -> np.ndarray:
+    """construct dataset from test_df and used the passed model to make 
+    predictions"""
+
+    test_df_mapped = test_df.copy() 
+    test_df_mapped.loc[:, constants.customer_id_str] = \
+        test_df_mapped[constants.customer_id_str].map(row_lookup_customers) # 
+    # now the ids are the row indexes of the encoder matrix 
+    # NOTE: missing customers will go!?
+    
+    test_df_mapped.loc[:, constants.product_id_str] = \
+        test_df_mapped[constants.product_id_str].map(row_lookup_products)
+    test_dataset = tf.data.Dataset.from_tensor_slices(
+        (
+            test_df_mapped[
+                [constants.product_id_str, constants.customer_id_str]
+            ].values, 
+            test_df_mapped.purchased.values
+        )
+    )
+    test_dataset = test_dataset.batch(batch_size) # no shuffle!
+    predictions = model.predict(test_dataset)
+
+    return predictions
 
 
 def train_model(
@@ -213,11 +241,40 @@ def train_model(
         model: trained keras model
         history: history object from training
     """
-    # get the sizes the embeddings should be set to
-    max_prod_ind = max(train_df.productId.max(), test_df.productId.max()) + 1
-    max_cust_ind = max(train_df.customerId.max(), test_df.customerId.max()) + 1
+    # get encoded matrices for customers and products, as well as lookup dicts 
+    # so we can index rows properly
+    row_lookup_customers, encoded_customers = customer_vector_similarity.encode_customer()
+    row_lookup_products, encoded_products = product_vector_similarity.encode_products()
 
-    # split the training df into a train and val, val used for early stopping
+    # make sure train and test only contain customers and products that are 
+    # encoded
+    train_df = train_df[
+        (
+            train_df[constants.customer_id_str].\
+                isin(row_lookup_customers.keys())
+        ) & (
+            train_df[constants.product_id_str].\
+                isin(row_lookup_products.keys())
+        )
+    ]
+    test_df = test_df[
+        (
+            test_df[constants.customer_id_str].\
+                isin(row_lookup_customers.keys())
+        ) & (
+            test_df[constants.product_id_str].\
+                isin(row_lookup_products.keys())
+        )
+    ]
+    
+    # map the ids to the indices in the encoded matrixes
+    train_df.loc[:, constants.customer_id_str] = train_df[
+        constants.customer_id_str].map(row_lookup_customers) # now the ids are 
+    # the row indexes of the encoder matrix
+    train_df.loc[:, constants.product_id_str] = train_df[
+        constants.product_id_str].map(row_lookup_products)
+
+    # form a validation set for early stopping
     train_df = train_df.iloc[:int(len(train_df) * 0.8)]
     val_df = train_df.iloc[int(len(train_df) * 0.8):]
 
@@ -229,9 +286,10 @@ def train_model(
         batch_size=batch_size,
     )
 
-    model = deep_NN(
-        highest_customer_ind=max_cust_ind, 
-        highest_product_ind=max_prod_ind, 
+    # init model
+    model = simple_NN(
+        encoded_customers.todense(), 
+        encoded_products.todense(), 
         output_bias=get_default_bias(train_df=train_df)
     )
 
@@ -258,6 +316,7 @@ def train_model(
         ]
     )
 
+    # fit the model
     history = model.fit(
         train_dataset, 
         validation_data=val_dataset,
@@ -265,31 +324,14 @@ def train_model(
         callbacks=[early_stopping],
         shuffle=True,
     )
+
     return model, history
-
-
-def make_model_preds(
-    test_df: pd.DataFrame, model: keras.Model, 
-    batch_size: int = DEFAULT_BATCH_SIZE
-) -> np.ndarray:
-    """construct dataset from test_df and used the passed model to make 
-    predictions"""
-    test_dataset = tf.data.Dataset.from_tensor_slices(
-        (
-            test_df.loc[:,
-                [constants.product_id_str, constants.customer_id_str]
-            ].values, 
-            test_df.loc[:, constants.purchased_label_str].values
-        )
-    )
-    test_dataset = test_dataset.batch(batch_size) # no shuffle!
-    predictions = model.predict(test_dataset)
-    return predictions
 
 ################################################################################
 
-def get_collaborative_nn_probs(
-    train_df: pd.DataFrame, test_df: pd.DataFrame, 
+
+def get_content_nn_probs(
+    train_df: pd.DataFrame, test_df: pd.DataFrame,
     model_name_str: str,
     learning_rate: float = DEFAULT_LR,
     batch_size: int = DEFAULT_BATCH_SIZE,
@@ -297,62 +339,52 @@ def get_collaborative_nn_probs(
     pos_weight: float = DEFAULT_CLASS_WEIGHTING, 
     neg_weight: float = DEFAULT_CLASS_WEIGHTING,
 ) -> pd.DataFrame:
-    """train a nn for collaborative filtering (i.e. trained embeddings plus FC 
-    layers) and then make predictions for the test set.
-    Args:
-        model_name_str: name to save model predictions to cache/load from later
-        balance_dataset: bool to decide whether to balance the dataset or not
-        learning_rate: learning rate for fitting
-        train_df: df to train on 
-        test_df: df to make predictions with
-        pos_weight: positive class weight [0-1], pos_weight+neg_weight must = 1
-        neg_weight: negative class weight [0-1], pos_weight+neg_weight must = 1
-        batch_size: batch size for training
-    Returns:
-        test_df: same as input but with predictions now instead of labels
-    """
 
     # setup devices. only using 1 gpu, edit for more or for none.
     physical_devices = tf.config.list_physical_devices('GPU')[:1]
     tf.config.experimental.set_visible_devices(physical_devices[0], 'GPU')
     for device in physical_devices:
         tf.config.experimental.set_memory_growth(device, True)
-    
-    # train the model
-    trained_model, history = train_model(
-        train_df=train_df, test_df=test_df, balance_dataset=balance_dataset,
-        pos_weight=pos_weight, neg_weight=neg_weight,
-        learning_rate=learning_rate,
-    )
 
-    # plotting    
+    model, history = train_model(
+        train_df=train_df, test_df=test_df, 
+        learning_rate=learning_rate,
+        batch_size=batch_size,
+        balance_dataset=balance_dataset,
+        pos_weight=pos_weight, 
+        neg_weight=neg_weight,
+    )
+    
+    # plot everything
     plot_metrics_and_loss_learning(
         history=history, model_name_str=model_name_str
     )
-    
-    # make predictions with trained model
+
+    # make predicitons on test set
     predictions = make_model_preds(
-        test_df=test_df, model=trained_model, batch_size=batch_size
+        test_df=test_df, model=model,
+        row_lookup_customers=row_lookup_customers,
+        row_lookup_products=row_lookup_products,
+        batch_size=batch_size,
     )
 
-    test_df.loc[:, constants.probabilities_str] = predictions 
+    test_df.loc[:, constants.probabilities_str] = predictions # NOTE: same name column as labels
     return test_df
 
 
 ################################################################################
 
-def main() -> None:
-    model_name = "coll_nn_deep_unbalanced"
+def main():
+    model_name = "content_nn_simple_unbalanced"
     dataset_being_evaluated = "val"
 
     predictions = common_funcs.generate_and_cache_preds(
         model_name=model_name, 
-        model_fetching_func=get_collaborative_nn_probs, 
+        model_fetching_func=get_content_nn_probs, 
         dataset_being_evaluated=dataset_being_evaluated,
         model_name_str=model_name,
     )
     labels = common_funcs.get_labels(dataset_to_fetch=dataset_being_evaluated)
-    
     scores_dict = common_funcs.get_scores(
         predictions=predictions, 
         labels=labels, 
