@@ -33,7 +33,9 @@ def engineer_product_features(product_df: pd.DataFrame) -> pd.DataFrame:
     product_df["productType"] = product_df["productType"].astype('category')
     product_df["onSale"] = product_df["onSale"].astype('category')
 
-    product_df["dateOnSite"] = pd.to_datetime(product_df.dateOnSite, errors='coerce')
+    product_df["dateOnSite"] = pd.to_datetime(
+        product_df.dateOnSite, errors='coerce'
+    )
     product_df.dateOnSite.fillna(product_df.dateOnSite.mean(), inplace=True)
     product_df["days_on_site"] = (
             product_df["dateOnSite"] - product_df["dateOnSite"].min()
@@ -48,7 +50,12 @@ def encode_products() -> Tuple[Dict, np.ndarray]:
     product_df = data_loading.get_products_df() # get product info
 
     # form lookup dict for getting rows of encoded matrix based on product id
-    row_lookup = dict(zip(product_df[constants.product_id_str], range(len(product_df)))) # 
+    row_lookup = dict(
+        zip(
+            product_df[constants.product_id_str], 
+            range(len(product_df))
+        )
+    ) # 
     # faster for later - rather than use df so we can keep sparse encoded
 
     # feature engineering
@@ -68,7 +75,9 @@ def encode_products() -> Tuple[Dict, np.ndarray]:
 def get_products_customer_bought(
     train_df: pd.DataFrame, customerId: int
 ) -> np.ndarray:
-    productIds = train_df[train_df[constants.customer_id_str] == customerId][constants.product_id_str].values
+    productIds = train_df[
+            train_df[constants.customer_id_str] == customerId
+        ][constants.product_id_str].values
     return productIds
 
 
@@ -78,7 +87,8 @@ def get_vector_content_sim_product_probs(
     row_lookup, encoded_products = encode_products()
 
     grouped_customers = train_df.groupby(constants.customer_id_str)
-    customer_product_dict = grouped_customers[constants.product_id_str].apply(np.array).to_dict()
+    customer_product_dict = grouped_customers[
+        constants.product_id_str].apply(np.array).to_dict()
 
     # TODO vectorise
     # TODO change variable names
@@ -93,7 +103,8 @@ def get_vector_content_sim_product_probs(
             predictions.append(0.5)
             continue 
 
-        this_product_vector = encoded_products[row_lookup[this_product_id], :].toarray()
+        this_product_vector = encoded_products[
+            row_lookup[this_product_id], :].toarray()
 
         try:
             customer_product_dict[row[constants.product_id_str]]
@@ -113,11 +124,13 @@ def get_vector_content_sim_product_probs(
         product_encoder_rows = [row_lookup[id] for id in productIds]
         product_vectors = encoded_products[product_encoder_rows, :].toarray()
 
-        product_similarities = cosine_similarity(product_vectors, this_product_vector)
+        product_similarities = cosine_similarity(
+            product_vectors, this_product_vector
+        )
         mean_sim = np.mean(product_similarities)
         predictions.append(mean_sim)
    
-    test_df.loc[:, constants.probabilities_str] = predictions # NOTE: same name column as labels
+    test_df.loc[:, constants.probabilities_str] = predictions
     return test_df
 
 ################################################################################

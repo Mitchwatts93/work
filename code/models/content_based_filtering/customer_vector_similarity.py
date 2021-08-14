@@ -21,7 +21,9 @@ from processing import data_loading
 ################################################################################
 
 def engineer_customer_df_features(customer_df: pd.DataFrame) -> pd.DataFrame:
-    customer_df = customer_df[['isFemale', 'country', 'yearOfBirth', 'isPremier']]
+    customer_df = customer_df[
+        ['isFemale', 'country', 'yearOfBirth', 'isPremier']
+    ]
     customer_df.fillna(customer_df.median(), inplace=True)
 
     # feature engineering
@@ -33,13 +35,18 @@ def engineer_customer_df_features(customer_df: pd.DataFrame) -> pd.DataFrame:
     customer_df.loc[:, "isPremier"] = customer_df.isPremier.astype(bool)
 
     oldest_person_alive_birthyear = 1903
-    customer_df.loc[customer_df.yearOfBirth < oldest_person_alive_birthyear, "yearOfBirth"] = np.nan
-    customer_df.yearOfBirth.fillna(customer_df.yearOfBirth.median(), inplace=True)
+    customer_df.loc[
+            customer_df.yearOfBirth < oldest_person_alive_birthyear,
+            "yearOfBirth"
+        ] = np.nan
+    customer_df.yearOfBirth.fillna(
+        customer_df.yearOfBirth.median(), inplace=True
+    )
 
     customer_df["isFemale"] = customer_df["isFemale"].astype('category')
     customer_df["country"] = customer_df["country"].astype('category')
     customer_df["isPremier"] = customer_df["isPremier"].astype('category')
-    customer_df["yearOfBirth"] = customer_df["yearOfBirth"].astype('category') # TODO needs to be standard scaled and kept as a float
+    customer_df["yearOfBirth"] = customer_df["yearOfBirth"].astype('category')
 
     return customer_df
 
@@ -49,7 +56,11 @@ def encode_customer() -> Tuple[Dict, np.ndarray]:
     # information
 
     # form lookup dict for getting rows of encoded matrix based on customer id
-    row_lookup = dict(zip(customer_df[constants.customer_id_str], range(len(customer_df)))) # 
+    row_lookup = dict(
+        zip(
+            customer_df[constants.customer_id_str], range(len(customer_df))
+        )
+    ) # 
     # faster for later - rather than use df so we can keep sparse encoded
 
     # feature engineering
@@ -68,7 +79,9 @@ def encode_customer() -> Tuple[Dict, np.ndarray]:
 def get_customers_who_bought_product(
     train_df: pd.DataFrame, productId: int
 ) -> np.ndarray:
-    customerIds = train_df[train_df[constants.product_id_str] == productId][constants.customer_id_str].values
+    customerIds = train_df[
+            train_df[constants.product_id_str] == productId
+        ][constants.customer_id_str].values
     return customerIds
 
 
@@ -81,7 +94,8 @@ def get_vector_content_sim_probs(
 
 
     grouped_products = train_df.groupby(constants.product_id_str)
-    product_customer_dict = grouped_products[constants.customer_id_str].apply(np.array).to_dict()
+    product_customer_dict = grouped_products[
+        constants.customer_id_str].apply(np.array).to_dict()
 
     # TODO vectorise
     # TODO change variable names
@@ -96,7 +110,8 @@ def get_vector_content_sim_probs(
             predictions.append(0.5)
             continue 
 
-        this_customer_vector = encoded_customers[row_lookup[this_customer_id], :].toarray()
+        this_customer_vector = encoded_customers[
+            row_lookup[this_customer_id], :].toarray()
 
         try:
             product_customer_dict[row[constants.product_id_str]]
@@ -123,7 +138,7 @@ def get_vector_content_sim_probs(
         predictions.append(mean_sim)
 
 
-    test_df.loc[:, constants.probabilities_str] = predictions # NOTE: same name column as labels
+    test_df.loc[:, constants.probabilities_str] = predictions 
     return test_df
 
 ################################################################################
