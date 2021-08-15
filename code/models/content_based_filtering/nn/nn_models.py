@@ -102,7 +102,7 @@ class deep_NN(keras.Model):
         self.out = keras.layers.Dense(units=1, activation='sigmoid', bias_initializer=output_bias)
 
 
-    def call(self, X: tf.Tensor) -> tf.Tensors:
+    def call(self, X: tf.Tensor) -> tf.Tensor:
 
         product_id = X[:, 0]
 

@@ -22,7 +22,6 @@ def get_CoClustering_probs(
 ) -> pd.DataFrame:
     """train coclustering model using surprise package. once fitted make 
     predictions on the test set"""
-    
     # build surprise datasets
     train_data = Dataset.load_from_df(
         train_df, 

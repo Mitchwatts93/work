@@ -18,7 +18,7 @@ sys.path.append(PDIR) # rather than force you to add package to path in bash,
 
 from misc import constants
 from processing import split_data
-from recmetrics.plots import class_separation_plot, precision_recall_plot
+from recmetrics.plots import precision_recall_plot
 
 ################################################################################
 
@@ -49,14 +49,22 @@ def get_ytrue_ypred(
         preds = pickle.load(f)
 
     # load labels
-    _train_labels_training, val_labels_training, _test_labels_training = \
+    _train_labels_training, val_labels_training, test_labels_training = \
         split_data.get_split_labels_training_df()
+        
+    if "val" in pred_filename:
+        eval_set = val_labels_training
+    elif "test" in pred_filename:
+        eval_set = test_labels_training
+    else:
+        raise FileNotFoundError("there are no labels for this prediction set: "
+                    f"{pred_filename}")
 
     # merge the two and align their indices
     suffix = "label"
-    val_labels_training.rename(
+    eval_set.rename(
         {
-            constants.probabilities_str:f"{constants.probabilities_str}_{suffix}"
+            constants.purchased_label_str:f"{constants.purchased_label_str}_{suffix}"
         }, 
         inplace=True, 
         axis=1
@@ -64,7 +72,7 @@ def get_ytrue_ypred(
     # conflict of column names
     joined_df = pd.merge(
         preds, 
-        val_labels_training, 
+        eval_set, 
         on=[
             constants.customer_id_str, 
             constants.product_id_str
@@ -74,7 +82,7 @@ def get_ytrue_ypred(
     # missing preds
 
     # convert to np array
-    y_true = joined_df[constants.purchased_label_str].values
+    y_true = joined_df[f"{constants.purchased_label_str}_{suffix}"].values
     y_pred = joined_df[constants.probabilities_str].values
     return y_true, y_pred
 
@@ -134,37 +142,28 @@ def plot_precision_recall_plot(
     plt.close()
 
 
-def plot_class_separation(
-    pred_filename : os.PathLike, y_true: np.ndarray, y_pred: np.ndarray
-) -> None:
-    """plot the class separation using remetrics function"""
-    pred_df = pd.DataFrame(
-        data=np.vstack(y_true, y_pred), 
-        columns=['predicted', 'truth']
-    ) # recmetrics wants these columns
-    #model_name = pred_filename.split('.')[0] # TODO mkdir to save plots
-    save_path = os.path.join(
-        constants.PLOTS_PATH, 
-        f"class_sep_{pred_filename.split('.')[0]}.png"
-    )
-    class_separation_plot(pred_df=pred_df, save_label=save_path)
-
-
 ################################################################################
 
 def plot_all_preds() -> None:
     """look through all the saved prediction file and make a plot for each"""
     for pred_filename in os.listdir(constants.PREDICTIONS_PATH):
+        if "holdout" in pred_filename:
+            continue
         try:
-            y_true, y_pred = get_ytrue_ypred()
+            y_true, y_pred = get_ytrue_ypred(pred_filename)
         except FileNotFoundError:
             # the file is not a prediction file
             continue
 
-        plot_class_separation(pred_filename, y_true, y_pred)
-        plot_precision_recall_plot(pred_filename, y_true, y_pred)
-        plot_roc(pred_filename, y_true, y_pred)
+        try: # TODO remove this! its because you didn't map back the indices
+            plot_precision_recall_plot(pred_filename, y_true, y_pred)
+            plot_roc(pred_filename, y_true, y_pred)
+        except IndexError:
+            print(f"could not plot eval plots for {pred_filename}") # TODO 
+            # change to logger
+            continue
 
+        
 ################################################################################
 
 if __name__ == "__main__":

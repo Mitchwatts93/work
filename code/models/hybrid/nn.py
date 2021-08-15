@@ -16,8 +16,8 @@ from models.content_based_filtering import product_vector_similarity, customer_v
 from misc import constants
 from models import common_funcs
 from processing import split_data, data_loading
-from models.hybrid.nn.misc import lr_plotter
-from models.hybrid.nn.nn_models import simple_NN_no_views, deep_NN_no_views
+from models.hybrid.nn_misc import lr_plotter
+from models.hybrid.nn_models import simple_NN_no_views, deep_NN_no_views
 
 ################################################################################
 # constants
@@ -50,7 +50,7 @@ def plot_metrics_and_loss_learning(
     plt.plot(history.history['val_accuracy'], label='val')
     plt.legend()
     save_path = os.path.join(NN_PLOT_DIR, f"{model_name_str}_acc.png")
-    plt.savefigsave_path)
+    plt.savefig(save_path)
     plt.close()
 
     plt.plot(history.history['auc'], label='train')
@@ -241,9 +241,18 @@ def train_model(
     train_df.loc[:, constants.product_id_str] = train_df[
         constants.product_id_str].map(row_lookup_products)
 
+    # map the ids to the indices in the encoded matrixes
+    test_df.loc[:, constants.customer_id_str] = test_df[
+        constants.customer_id_str].map(row_lookup_customers) # now the ids are 
+    # the row indexes of the encoder matrix
+    test_df.loc[:, constants.product_id_str] = test_df[
+        constants.product_id_str].map(row_lookup_products)
+
     # for the embeddings, set the max indices
-    max_prod_ind = max(train_df[constants.product_id_str].max(), test_df[constants.product_id_str].max())
-    max_cust_ind = max(train_df[constants.customer_id_str].max(), test_df[constants.customer_id_str].max())
+    #max_prod_ind = max(train_df[constants.product_id_str].max(), test_df[constants.product_id_str].max()) + 1
+    #max_cust_ind = max(train_df[constants.customer_id_str].max(), test_df[constants.customer_id_str].max()) + 1
+    max_prod_ind = max(row_lookup_products.values()) + 1
+    max_cust_ind = max(row_lookup_customers.values()) + 1
 
     # form a validation set for early stopping
     train_df = train_df.iloc[:int(len(train_df) * 0.8)]
@@ -294,7 +303,7 @@ def train_model(
     history = model.fit(
         train_dataset, 
         validation_data=val_dataset,
-        epochs=10,
+        epochs=60,
         callbacks=[early_stopping],
         shuffle=True,
     )
@@ -311,6 +320,15 @@ def make_model_preds(
 ) -> np.ndarray:
     """construct dataset from test_df and used the passed model to make 
     predictions"""
+    test_df = test_df[
+        (
+            test_df[constants.customer_id_str].\
+                isin(row_lookup_customers.keys())
+        ) & (
+            test_df[constants.product_id_str].\
+                isin(row_lookup_products.keys())
+        )
+    ]
 
     test_df_mapped = test_df.copy() 
     test_df_mapped.loc[:, constants.customer_id_str] = \
@@ -331,59 +349,86 @@ def make_model_preds(
     test_dataset = test_dataset.batch(batch_size) # no shuffle!
     predictions = model.predict(test_dataset)
 
-    return predictions
+    test_df.loc[:, constants.probabilities_str] = predictions
+
+    return test_df
 
 
 def predict_and_save_holdout_sets(
     row_lookup_customers: Dict, row_lookup_products: Dict, 
     trained_model: keras.Model, 
+    model_name_str: str,
     batch_size: int = DEFAULT_BATCH_SIZE
 ) -> None:
-    train, val, holdout_test_set_df = split_data.get_split_labels_training_df()
 
-    holdout_test_set_df = holdout_test_set_df[
+    train, val, holdout_test_set_orig = split_data.get_split_labels_training_df()
+
+    ## preds for holdout test set
+    holdout_test_set_orig = holdout_test_set_orig[
         (
-            holdout_test_set_df[constants.customer_id_str].isin(row_lookup_customers.keys())
+            holdout_test_set_orig[constants.customer_id_str].isin(row_lookup_customers.keys())
         ) & (
-            holdout_test_set_df[constants.product_id_str].isin(row_lookup_products.keys())
+            holdout_test_set_orig[constants.product_id_str].isin(row_lookup_products.keys())
         )
     ]
 
-    holdout_test_predictions = make_model_preds(
+    holdout_test_set_df = holdout_test_set_orig.copy() # because of the mapping
+
+    holdout_test_set_df = make_model_preds(
         test_df=holdout_test_set_df, 
         model=trained_model,
         row_lookup_customers=row_lookup_customers,
         row_lookup_products=row_lookup_products,
         batch_size=batch_size,
     )
-    holdout_test_set_df.loc[:, constants.probabilities_str] = holdout_test_predictions
+    holdout_test_set_orig.loc[:, constants.probabilities_str] = holdout_test_set_df[constants.probabilities_str]
     holout_set_save_path = os.path.join(constants.PREDICTIONS_PATH, 'nnv1_test_set.gzip')
     with gzip.open(holout_set_save_path, 'wb') as f:
-        pickle.dump(holdout_test_set_df, f, protocol=4)
+        pickle.dump(holdout_test_set_orig, f, protocol=4)
+
+    dataset_being_evaluated = 'test'
+    labels = common_funcs.get_labels(dataset_to_fetch=dataset_being_evaluated)
+    
+    scores_dict = common_funcs.get_scores(
+        predictions=holdout_test_set_orig, 
+        labels=labels, 
+        model_name=model_name_str, 
+        dataset_being_evaluated=dataset_being_evaluated
+    )
+    
+    common_funcs.cache_scores_to_master_dict(
+        dataset_being_evaluated=dataset_being_evaluated,
+        scores_dict=scores_dict,
+        model_name=model_name_str
+    )
 
 
-    overall_holdout_set = data_loading.get_labels_predict_df()
+    # preds for holdout set given
+    overall_holdout_set_orig = data_loading.get_labels_predict_df()
 
-    overall_holdout_set = overall_holdout_set[
+    overall_holdout_set_orig = overall_holdout_set_orig[
         (
-            overall_holdout_set[constants.customer_id_str].isin(row_lookup_customers.keys())
+            overall_holdout_set_orig[constants.customer_id_str].isin(row_lookup_customers.keys())
         ) & (
-            overall_holdout_set[constants.product_id_str].isin(row_lookup_products.keys())
+            overall_holdout_set_orig[constants.product_id_str].isin(row_lookup_products.keys())
         )
     ]
 
-    overall_holdout_set_predictions = make_model_preds(
+    overall_holdout_set = overall_holdout_set_orig.copy() # because of the mapping
+    overall_holdout_set.rename({'purchase_probability':constants.purchased_label_str}, axis=1, inplace=True)
+    overall_holdout_set = make_model_preds(
         test_df=overall_holdout_set, 
         model=trained_model,
         row_lookup_customers=row_lookup_customers,
         row_lookup_products=row_lookup_products,
         batch_size=batch_size,
     )
-    overall_holdout_set['purchase_probability'] = overall_holdout_set_predictions
+
+    overall_holdout_set_orig.loc[:, 'purchase_probability'] = overall_holdout_set[constants.probabilities_str]
     
     holout_set_save_path = os.path.join(constants.PREDICTIONS_PATH, 'nnv1_holdout_set.gzip')
     with gzip.open(holout_set_save_path, 'wb') as f:
-        pickle.dump(overall_holdout_set, f, protocol=4)
+        pickle.dump(overall_holdout_set_orig, f, protocol=4)
     # NOTE missing about 4k preds
 
 ################################################################################
@@ -398,7 +443,6 @@ def get_hybrid_nn_probs(
     neg_weight: float = DEFAULT_CLASS_WEIGHTING,
     predict_holdout_sets: bool = True,
 ) -> pd.DataFrame:
-
     # setup devices. only using 1 gpu, edit for more or for none.
     physical_devices = tf.config.list_physical_devices('GPU')[:1]
     tf.config.experimental.set_visible_devices(physical_devices[0], 'GPU')
@@ -421,14 +465,12 @@ def get_hybrid_nn_probs(
     )
 
     # make predicitons on test set
-    predictions = make_model_preds(
+    test_df = make_model_preds(
         test_df=test_df, model=trained_model,
         row_lookup_customers=row_lookup_customers,
         row_lookup_products=row_lookup_products,
         batch_size=batch_size,
     )
-
-    test_df.loc[:, constants.probabilities_str] = predictions # NOTE: same name column as labels
     
     if predict_holdout_sets:
         predict_and_save_holdout_sets(
@@ -436,6 +478,7 @@ def get_hybrid_nn_probs(
             row_lookup_products=row_lookup_products, 
             trained_model=trained_model, 
             batch_size=batch_size,
+            model_name_str=model_name_str,
         )
         
     return test_df

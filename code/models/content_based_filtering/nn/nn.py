@@ -17,7 +17,7 @@ sys.path.append(PPPDIR) # rather than force you to add package to path in bash,
 from models.content_based_filtering import product_vector_similarity, customer_vector_similarity
 from misc import constants
 from models import common_funcs
-from models.content_based_filtering.nn.misc import lr_plotter
+from models.content_based_filtering.nn.nn_misc import lr_plotter
 from models.content_based_filtering.nn.nn_models import simple_NN, deep_NN
 
 
@@ -52,7 +52,7 @@ def plot_metrics_and_loss_learning(
     plt.plot(history.history['val_accuracy'], label='val')
     plt.legend()
     save_path = os.path.join(NN_PLOT_DIR, f"{model_name_str}_acc.png")
-    plt.savefigsave_path)
+    plt.savefig(save_path)
     plt.close()
 
     plt.plot(history.history['auc'], label='train')
@@ -194,9 +194,19 @@ def make_model_preds(
     row_lookup_customers: Dict,
     row_lookup_products: Dict,
     batch_size: int = DEFAULT_BATCH_SIZE
-) -> np.ndarray:
+) -> pd.DataFrame:
     """construct dataset from test_df and used the passed model to make 
     predictions"""
+
+    test_df = test_df[
+        (
+            test_df[constants.customer_id_str].\
+                isin(row_lookup_customers.keys())
+        ) & (
+            test_df[constants.product_id_str].\
+                isin(row_lookup_products.keys())
+        )
+    ]
 
     test_df_mapped = test_df.copy() 
     test_df_mapped.loc[:, constants.customer_id_str] = \
@@ -206,6 +216,10 @@ def make_model_preds(
     
     test_df_mapped.loc[:, constants.product_id_str] = \
         test_df_mapped[constants.product_id_str].map(row_lookup_products)
+
+    test_df_mapped.loc[:, constants.customer_id_str] = test_df_mapped[constants.customer_id_str].astype(int)
+    test_df_mapped.loc[:, constants.product_id_str] = test_df_mapped[constants.product_id_str].astype(int)
+
     test_dataset = tf.data.Dataset.from_tensor_slices(
         (
             test_df_mapped[
@@ -217,11 +231,13 @@ def make_model_preds(
     test_dataset = test_dataset.batch(batch_size) # no shuffle!
     predictions = model.predict(test_dataset)
 
-    return predictions
+    test_df.loc[:, constants.probabilities_str] = predictions
+
+    return test_df
 
 
 def train_model(
-    train_df: pd.DataFrame, test_df: pd.DataFrame, 
+    train_df: pd.DataFrame,
     learning_rate: float = DEFAULT_LR,
     batch_size: int = DEFAULT_BATCH_SIZE,
     balance_dataset: bool = DEFAULT_BALANCE_DATASET,
@@ -257,15 +273,7 @@ def train_model(
                 isin(row_lookup_products.keys())
         )
     ]
-    test_df = test_df[
-        (
-            test_df[constants.customer_id_str].\
-                isin(row_lookup_customers.keys())
-        ) & (
-            test_df[constants.product_id_str].\
-                isin(row_lookup_products.keys())
-        )
-    ]
+    
     
     # map the ids to the indices in the encoded matrixes
     train_df.loc[:, constants.customer_id_str] = train_df[
@@ -340,7 +348,6 @@ def get_content_nn_probs(
     pos_weight: float = DEFAULT_CLASS_WEIGHTING, 
     neg_weight: float = DEFAULT_CLASS_WEIGHTING,
 ) -> pd.DataFrame:
-
     # setup devices. only using 1 gpu, edit for more or for none.
     physical_devices = tf.config.list_physical_devices('GPU')[:1]
     tf.config.experimental.set_visible_devices(physical_devices[0], 'GPU')
@@ -348,7 +355,7 @@ def get_content_nn_probs(
         tf.config.experimental.set_memory_growth(device, True)
 
     model, history, row_lookup_customers, row_lookup_products = train_model(
-        train_df=train_df, test_df=test_df, 
+        train_df=train_df,
         learning_rate=learning_rate,
         batch_size=batch_size,
         balance_dataset=balance_dataset,
@@ -362,14 +369,13 @@ def get_content_nn_probs(
     )
 
     # make predicitons on test set
-    predictions = make_model_preds(
+    test_df = make_model_preds(
         test_df=test_df, model=model,
         row_lookup_customers=row_lookup_customers,
         row_lookup_products=row_lookup_products,
         batch_size=batch_size,
     )
 
-    test_df.loc[:, constants.probabilities_str] = predictions # NOTE: same name column as labels
     return test_df
 
 

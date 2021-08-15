@@ -177,7 +177,3 @@ def get_metric_dict(
 
 
 ################################################################################
-
-if __name__ == "__main__":
-    metric_dict = get_metric_dict()
-    print(metric_dict)

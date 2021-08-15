@@ -98,7 +98,6 @@ def get_vector_content_sim_probs(
     train_df: pd.DataFrame, test_df: pd.DataFrame
 ) -> pd.DataFrame:
     """get the similarity scores based on content vectors between customers"""
-
     # get row lookup dict and encoded matrix of customers
     row_lookup, encoded_customers = encode_customer()
 

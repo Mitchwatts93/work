@@ -24,7 +24,6 @@ def trim_train_test_dfs(
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """trim the datasets due to ram issues, and due to missing product or 
     customer indices from train or test df"""
-
     train_df = train_df.iloc[:int(len(train_df) / 3)] # RAM ISSUES
 
     # discard items and products which have all zeros

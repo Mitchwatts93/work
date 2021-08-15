@@ -45,6 +45,9 @@ def load_or_make_wrapper(
     if is_cached(filepath=filepath):
         data = load_from_cache(filepath=filepath)
     else:
+        if 'additional_kwargs_for_model' in inputs:
+            additional_args = inputs.pop('additional_kwargs_for_model')
+            inputs.update(additional_args)
         data = maker_func(**inputs)
         if cache:
             cache_file(file=data, filepath=filepath)

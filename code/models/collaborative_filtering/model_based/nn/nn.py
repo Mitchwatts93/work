@@ -22,7 +22,7 @@ sys.path.append(PPPPDIR) # rather than force you to add package to path in bash
 from misc import constants
 from models import common_funcs
 from models.collaborative_filtering.model_based.nn.nn_models import simple_NN, deep_NN
-from models.collaborative_filtering.model_based.nn.misc import lr_plotter
+from models.collaborative_filtering.model_based.nn.nn_misc import lr_plotter
 
 ################################################################################
 # constants
@@ -312,7 +312,6 @@ def get_collaborative_nn_probs(
     Returns:
         test_df: same as input but with predictions now instead of labels
     """
-
     # setup devices. only using 1 gpu, edit for more or for none.
     physical_devices = tf.config.list_physical_devices('GPU')[:1]
     tf.config.experimental.set_visible_devices(physical_devices[0], 'GPU')

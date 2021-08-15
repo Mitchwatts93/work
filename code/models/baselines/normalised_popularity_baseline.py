@@ -154,7 +154,7 @@ def get_normalised_popularity_purchase_probabilities(
             common_funcs.generate_and_cache_preds
     Returns:
         test_df: change the column for labels to be predicted values instead
-    """
+    """    
     # get the ids to predict
     product_ids = test_df[constants.product_id_str]
     normalised_popularities = get_normalised_popularities(

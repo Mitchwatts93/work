@@ -20,8 +20,8 @@ from models.content_based_filtering import product_vector_similarity, customer_v
 from misc import constants
 from models import common_funcs
 from processing import split_data, data_loading
-from models.hybrid.nn.misc import lr_plotter
-from models.hybrid.nn.nn_models import simple_NN_views_coclustering
+from models.hybrid.nn_misc import lr_plotter
+from models.hybrid.nn_models import simple_NN_views_coclustering
 
 ################################################################################
 # constants
@@ -37,7 +37,7 @@ DEFAULT_PREFETCH = 2
 NN_PLOT_DIR = os.path.join(CDIR, "nn_plots")
 
 ################################################################################
-# TODO TODO
+
 def plot_metrics_and_loss_learning(
     history: keras.callbacks.History, model_name_str: str
 ) -> None:
@@ -54,7 +54,7 @@ def plot_metrics_and_loss_learning(
     plt.plot(history.history['val_accuracy'], label='val')
     plt.legend()
     save_path = os.path.join(NN_PLOT_DIR, f"{model_name_str}_acc.png")
-    plt.savefigsave_path)
+    plt.savefig(save_path)
     plt.close()
 
     plt.plot(history.history['auc'], label='train')
@@ -126,7 +126,7 @@ def construct_train_dataset(
         pos_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
                 train_df[train_df[constants.purchased_label_str]][
-                    [feature_cols]
+                    feature_cols
                 ].values, 
                 train_df[train_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
@@ -134,7 +134,7 @@ def construct_train_dataset(
         neg_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
                 train_df[~train_df[constants.purchased_label_str]][
-                    [feature_cols]
+                    feature_cols
                 ].values, 
                 train_df[~train_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
@@ -142,7 +142,7 @@ def construct_train_dataset(
         pos_val_dataset = tf.data.Dataset.from_tensor_slices(
             (
                 val_df[val_df[constants.purchased_label_str]][
-                    [feature_cols]
+                    feature_cols
                 ].values, 
                 val_df[val_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
@@ -150,7 +150,7 @@ def construct_train_dataset(
         neg_val_dataset = tf.data.Dataset.from_tensor_slices(
             (
                 val_df[~val_df[constants.purchased_label_str]][
-                    [feature_cols]
+                    feature_cols
                 ].values, 
                 val_df[~val_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
@@ -168,7 +168,7 @@ def construct_train_dataset(
         resampled_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
                 train_df[
-                    [feature_cols]
+                    feature_cols
                 ].values, 
                 train_df[constants.purchased_label_str].values
             )
@@ -176,7 +176,7 @@ def construct_train_dataset(
         resampled_val_dataset = tf.data.Dataset.from_tensor_slices(
             (
                 val_df[
-                    [feature_cols]
+                    feature_cols
                 ].values, 
                 val_df[constants.purchased_label_str].values
             )
@@ -261,9 +261,6 @@ def train_model(
         constants.product_id_str].map(row_lookup_products)
 
 
-    max_prod_ind = max(train_df.productId.max(), test_df.productId.max()) + 1
-    max_cust_ind = max(train_df.customerId.max(), test_df.customerId.max()) + 1
-
     # form a validation set for early stopping
     train_df = train_df.iloc[:int(len(train_df) * 0.8)]
     val_df = train_df.iloc[int(len(train_df) * 0.8):]
@@ -346,12 +343,13 @@ def train_model(
         shuffle=True,
     )
 
-    return model, history, row_lookup_customers, row_lookup_products
+    return model, history, row_lookup_customers, row_lookup_products, train_df, views
 
 
 def make_model_preds(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame, 
+    views_df: pd.DataFrame, 
     model: keras.Model,
     row_lookup_customers: Dict,
     row_lookup_products: Dict,
@@ -361,6 +359,16 @@ def make_model_preds(
 ) -> np.ndarray:
     """construct dataset from test_df and used the passed model to make 
     predictions"""
+    test_df = pd.merge(views_df, test_df, on=['customerId', 'productId'], how='inner') # views_df with test_df
+    test_df = test_df[
+        (
+            test_df[constants.customer_id_str].\
+                isin(row_lookup_customers.keys())
+        ) & (
+            test_df[constants.product_id_str].\
+                isin(row_lookup_products.keys())
+        )
+    ]
 
     test_df_mapped = test_df.copy() 
     test_df_mapped.loc[:, constants.customer_id_str] = \
@@ -370,6 +378,8 @@ def make_model_preds(
     
     test_df_mapped.loc[:, constants.product_id_str] = \
         test_df_mapped[constants.product_id_str].map(row_lookup_products)
+
+    test_df_mapped.loc[:, constants.product_id_str] = test_df_mapped[constants.product_id_str].astype(int)
     
     try:
         with gzip.open(os.path.join(constants.MODEL_FILES_DIR, f"cocluster_preds_{set_name}.gzip"), 'rb') as f:
@@ -390,15 +400,15 @@ def make_model_preds(
 
         # these are the coclustering predictions
         with gzip.open(os.path.join(constants.MODEL_FILES_DIR, f"cocluster_preds_{set_name}.gzip"), 'wb') as f:
-            pickle.dump([test_predictions], f, protocol=4)
+            pickle.dump(test_predictions, f, protocol=4)
 
     ## next join these predictions onto the train_data
-    test_df_mapped["cocluster_pred"] = test_predictions
+    test_df_mapped.loc[:, "cocluster_pred"] = test_predictions
 
     test_dataset = tf.data.Dataset.from_tensor_slices(
         (
             test_df_mapped[
-                [feature_cols]
+                feature_cols
             ].values, 
             test_df_mapped[constants.purchased_label_str].values
         )
@@ -406,41 +416,36 @@ def make_model_preds(
     test_dataset = test_dataset.batch(batch_size) # no shuffle!
     predictions = model.predict(test_dataset)
 
-    return predictions
+    test_df.loc[:, constants.probabilities_str] = predictions
+
+    return test_df
 
 
 def predict_and_save_holdout_sets(
-    train_df: pd.DataFrame,
+    train_df: pd.DataFrame, views_df: pd.DataFrame,
     row_lookup_customers: Dict, row_lookup_products: Dict, 
     trained_model: keras.Model, 
     feature_cols: List,
+    model_name_str: str,
     batch_size: int = DEFAULT_BATCH_SIZE
 ) -> None:
+    train, val, holdout_test_set_df_orig = split_data.get_split_labels_training_df()
 
-    # TODO get coclustering predictions and add them!
-
-    train, val, holdout_test_set_df = split_data.get_split_labels_training_df()
-    views = data_loading.get_views_df()
-
-
-    holdout_test_set_df = pd.merge(
-        views, 
-        holdout_test_set_df, 
-        on=[constants.customer_id_str, constants.product_id_str], 
-        how='inner'
-    ) # views with test_set_df
-
-    holdout_test_set_df = holdout_test_set_df[
+    # preds for my holdout test set
+    holdout_test_set_df_orig = holdout_test_set_df_orig[
         (
-            holdout_test_set_df[constants.customer_id_str].isin(row_lookup_customers.keys())
+            holdout_test_set_df_orig[constants.customer_id_str].isin(row_lookup_customers.keys())
         ) & (
-            holdout_test_set_df[constants.product_id_str].isin(row_lookup_products.keys())
+            holdout_test_set_df_orig[constants.product_id_str].isin(row_lookup_products.keys())
         )
     ]
 
-    holdout_test_predictions = make_model_preds(
+    holdout_test_set_df = holdout_test_set_df_orig.copy()
+
+    holdout_test_set_df = make_model_preds(
         train_df=train_df,
         test_df=holdout_test_set_df, 
+        views_df=views_df,
         model=trained_model,
         feature_cols=feature_cols,
         row_lookup_customers=row_lookup_customers,
@@ -448,33 +453,48 @@ def predict_and_save_holdout_sets(
         batch_size=batch_size,
         set_name="holdout_test",
     )
-    holdout_test_set_df.loc[:, constants.probabilities_str] = holdout_test_predictions
+
+    holdout_test_set_df_orig.loc[:, constants.probabilities_str] = holdout_test_set_df[constants.probabilities_str]
     holout_set_save_path = os.path.join(constants.PREDICTIONS_PATH, 'nnv2_test_set_cocluster.gzip')
     with gzip.open(holout_set_save_path, 'wb') as f:
-        pickle.dump(holdout_test_set_df, f, protocol=4)
+        pickle.dump(holdout_test_set_df_orig, f, protocol=4)
+
+    dataset_being_evaluated = 'test'
+    labels = common_funcs.get_labels(dataset_to_fetch=dataset_being_evaluated)
+    
+    scores_dict = common_funcs.get_scores(
+        predictions=holdout_test_set_df_orig, 
+        labels=labels, 
+        model_name=model_name_str, 
+        dataset_being_evaluated=dataset_being_evaluated
+    )
+    
+    common_funcs.cache_scores_to_master_dict(
+        dataset_being_evaluated=dataset_being_evaluated,
+        scores_dict=scores_dict,
+        model_name=model_name_str
+    )
 
 
-    # TODO get coclustering predictions and add them!
-    overall_holdout_set = data_loading.get_labels_predict_df()
+    # preds for holdout set given
+    overall_holdout_set_orig = data_loading.get_labels_predict_df()
 
-    holdout_test_set_df = pd.merge(
-        views, 
-        holdout_test_set_df, 
-        on=[constants.customer_id_str, constants.product_id_str], 
-        how='inner'
-    ) # views with test_set_df
-
-    overall_holdout_set = overall_holdout_set[
+    overall_holdout_set_orig = overall_holdout_set_orig[
         (
-            overall_holdout_set[constants.customer_id_str].isin(row_lookup_customers.keys())
+            overall_holdout_set_orig[constants.customer_id_str].isin(row_lookup_customers.keys())
         ) & (
-            overall_holdout_set[constants.product_id_str].isin(row_lookup_products.keys())
+            overall_holdout_set_orig[constants.product_id_str].isin(row_lookup_products.keys())
         )
     ]
 
-    overall_holdout_set_predictions = make_model_preds(
+    overall_holdout_set = overall_holdout_set_orig.copy() # because of the mapping
+
+    overall_holdout_set.rename({"purchase_probability":constants.purchased_label_str}, axis=1, inplace=True)
+
+    overall_holdout_set = make_model_preds(
         train_df=train_df,
         test_df=overall_holdout_set, 
+        views_df=views_df,
         model=trained_model,
         feature_cols=feature_cols,
         row_lookup_customers=row_lookup_customers,
@@ -482,11 +502,12 @@ def predict_and_save_holdout_sets(
         batch_size=batch_size,
         set_name="holdout_overall"
     )
-    overall_holdout_set['purchase_probability'] = overall_holdout_set_predictions
+
+    overall_holdout_set_orig.loc[:, 'purchase_probability'] = overall_holdout_set[constants.probabilities_str]
     
     holout_set_save_path = os.path.join(constants.PREDICTIONS_PATH, 'nnv2_holdout_set_cocluter.gzip')
     with gzip.open(holout_set_save_path, 'wb') as f:
-        pickle.dump(overall_holdout_set, f, protocol=4)
+        pickle.dump(overall_holdout_set_orig, f, protocol=4)
     
 
 ################################################################################
@@ -513,7 +534,7 @@ def get_hybrid_nn_probs(
     feature_cols = [constants.product_id_str, constants.customer_id_str, "viewOnly", "changeThumbnail", "imageZoom", "viewCatwalk", "view360", "sizeGuide", "cocluster_pred"]
 
     # get trained model and history
-    trained_model, history, row_lookup_customers, row_lookup_products = train_model(
+    trained_model, history, row_lookup_customers, row_lookup_products, train_df_mapped, views_df = train_model(
         train_df=train_df, test_df=test_df, 
         learning_rate=learning_rate,
         batch_size=batch_size,
@@ -529,24 +550,28 @@ def get_hybrid_nn_probs(
     )
 
     # make predicitons on test set
-    predictions = make_model_preds(
-        train_df=train_df,
-        test_df=test_df, model=trained_model,
+    test_df = make_model_preds(
+        train_df=train_df_mapped,
+        test_df=test_df, 
+        views_df=views_df,
+        model=trained_model,
         row_lookup_customers=row_lookup_customers,
         row_lookup_products=row_lookup_products,
         batch_size=batch_size,
         feature_cols=feature_cols,
         set_name="train_test"
     )
-    test_df.loc[:, constants.probabilities_str] = predictions
     
     if predict_holdout_sets:
         predict_and_save_holdout_sets(
+            train_df=train_df_mapped,
+            views_df=views_df,
             row_lookup_customers=row_lookup_customers, 
             row_lookup_products=row_lookup_products, 
             trained_model=trained_model, 
             batch_size=batch_size,
             feature_cols=feature_cols,
+            model_name_str=model_name_str,
         )
         
     return test_df

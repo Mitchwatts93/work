@@ -96,7 +96,6 @@ def get_vector_content_sim_product_probs(
     train_df: pd.DataFrame, test_df: pd.DataFrame
 ) -> pd.DataFrame:
     """get the similarity scores based on content vectors between products"""
-    
     # get row lookup dict and encoded matrix of products
     row_lookup, encoded_products = encode_products()
 
