@@ -5,8 +5,8 @@ import os, sys
 import pandas as pd
 
 CDIR = os.path.dirname(os.path.abspath(__file__))
-PPDIR = os.path.dirname(os.path.dirname(CDIR))
-sys.path.append(PPDIR) # rather than force you to add package to path in bash, 
+PDIR = os.path.dirname(CDIR)
+sys.path.append(PDIR) # rather than force you to add package to path in bash, 
 # I've done this for robustness
 
 from misc.caching import load_or_make_wrapper

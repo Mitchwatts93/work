@@ -97,6 +97,7 @@ def merge_predictions_labels(
     predictions_full = pd.concat([predictions, missing_preds])
     
     predictions_full.rename({constants.probabilities_str:constants.predicted_purchased_str}, inplace=True, axis=1)
+
     final_results = pd.merge(
         labels, 
         predictions_full, 
@@ -171,7 +172,8 @@ def get_metric_dict(
 
     metric_results_dict = {} # now get all the metrics
     for metric_key in metric_fun_dict.keys():
-        metric_fun_dict[metric_key](y_true=reals, y_pred=preds)
+        metric_result = metric_fun_dict[metric_key](y_true=reals, y_pred=preds)
+        metric_results_dict[metric_key] = metric_result
 
     return metric_results_dict
 
