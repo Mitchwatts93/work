@@ -13,8 +13,8 @@ import os, sys
 
 CDIR = os.path.dirname(os.path.abspath(__file__))
 PPDIR = os.path.dirname(os.path.dirname(CDIR))
-sys.path.append(PPDIR) # I couldn't be bothered with making it a package, 
-# so I'm doing this to make sure imports work when run from anywhere
+sys.path.append(PPDIR) # rather than force you to add package to path in bash, 
+# I've done this for robustness
 
 from models.content_based_filtering import product_vector_similarity, customer_vector_similarity
 from misc import constants

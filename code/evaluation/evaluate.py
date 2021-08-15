@@ -9,8 +9,9 @@ import os, sys
 
 CDIR = os.path.dirname(os.path.abspath(__file__))
 PDIR = os.path.dirname(CDIR)
+sys.path.append(PDIR) # rather than force you to add package to path in bash, 
+# I've done this for robustness
 
-sys.path.append(PDIR)
 from misc import constants
 
 ################################################################################

@@ -7,9 +7,8 @@ import pandas as pd
 
 CDIR = os.path.dirname(os.path.abspath(__file__))
 PPDIR = os.path.dirname(os.path.dirname(CDIR))
-
-sys.path.append(PPDIR) # I couldn't be bothered with making it a package, 
-# so I'm doing this to make sure imports work when run from anywhere
+sys.path.append(PPDIR) # rather than force you to add package to path in bash, 
+# I've done this for robustness
 
 from misc import constants
 from models import common_funcs

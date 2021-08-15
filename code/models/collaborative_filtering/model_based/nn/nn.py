@@ -16,8 +16,8 @@ PPPPDIR = os.path.dirname(
         )
     )
 )
-sys.path.append(PPPPDIR) # I couldn't be bothered with making it a package, 
-# so I'm doing this to make sure imports work when run from anywhere
+sys.path.append(PPPPDIR) # rather than force you to add package to path in bash, 
+# I've done this for robustness
 
 from misc import constants
 from models import common_funcs
