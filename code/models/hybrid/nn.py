@@ -2,273 +2,10 @@ from tensorflow import keras
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-
-
-class simple_NN(keras.Model):
-
-    def __init__(self, highest_customer_ind, highest_product_ind, encoded_customers, encoded_products, output_bias=None):
-        super().__init__()
-        self.drop_rate = 0.01
-        if output_bias is not None:
-            output_bias = keras.initializers.Constant(output_bias)
-
-        self.encoded_customers = tf.convert_to_tensor(encoded_customers) #encoded_customers
-        self.encoded_products = tf.convert_to_tensor(encoded_products)  #encoded_products
-
-        self.prod_fc1_coll = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn_coll = keras.layers.BatchNormalization()
-        self.prod_drop_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.cust_fc1_coll = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn_coll = keras.layers.BatchNormalization()
-        self.cust_drop_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.fc2_coll = keras.layers.Dense(units=10, activation='relu')
-        self.fc2_bn_coll = keras.layers.BatchNormalization()
-        self.fc2_drop_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-
-        ####
-        embedding_dim = 20
-        
-        self.prod_emb = keras.layers.Embedding(highest_product_ind, embedding_dim)
-        self.cust_emb = keras.layers.Embedding(highest_customer_ind, embedding_dim)
-
-        self.prod_fc1_cont = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn_cont = keras.layers.BatchNormalization()
-        self.prod_drop_cont = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.cust_fc1_cont = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn_cont = keras.layers.BatchNormalization()
-        self.cust_drop_cont = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.fc2_cont = keras.layers.Dense(units=10, activation='relu')
-        self.fc2_bn_cont = keras.layers.BatchNormalization()
-        self.fc2_drop_cont= keras.layers.Dropout(rate=self.drop_rate)
-
-        ###
-
-        self.fc1_tot = keras.layers.Dense(units=10, activation='relu')
-        self.fc1_bn_drop = keras.layers.BatchNormalization()
-        self.fc1_tot_drop = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.out = keras.layers.Dense(units=1, activation='sigmoid', bias_initializer=output_bias)
-
-
-    def call(self, X):
-        product_id = X[:, 0]
-        customer_id = X[:, 1]
-
-        ### collaborative
-        
-        product_vec_coll = self.prod_emb(product_id)
-        customer_vec_coll = self.cust_emb(customer_id)
-        
-        p_hid_coll = self.prod_fc1_coll(product_vec_coll)
-        p_hid_coll = self.prod_bn_coll(p_hid_coll)
-        p_hid_coll = self.prod_drop_coll(p_hid_coll)
-        c_hid_coll = self.cust_fc1_coll(customer_vec_coll)
-        c_hid_coll = self.cust_bn_coll(c_hid_coll)
-        c_hid_coll = self.cust_drop_coll(c_hid_coll)
-
-        concatted_coll = tf.concat([p_hid_coll, c_hid_coll], axis=-1)
-
-        hid2_coll = self.fc2_coll(concatted_coll)
-        hid2_coll = self.fc2_bn_coll(hid2_coll)
-        hid2_coll = self.fc2_drop_coll(hid2_coll)
-
-
-        ### content
-
-        product_vec_cont = tf.nn.embedding_lookup(
-            params=self.encoded_products,
-            ids=product_id,
-        )
-        customer_vec_cont = tf.nn.embedding_lookup(
-            params=self.encoded_customers,
-            ids=customer_id,
-        )
-
-        p_hid_cont = self.prod_fc1_cont(product_vec_cont)
-        p_hid_cont = self.prod_bn_cont(p_hid_cont)
-        p_hid_cont = self.prod_drop_cont(p_hid_cont)
-        c_hid_cont = self.cust_fc1_cont(customer_vec_cont)
-        c_hid_cont = self.cust_bn_cont(c_hid_cont)
-        c_hid_cont = self.cust_drop_cont(c_hid_cont)
-
-        concatted_cont = tf.concat([p_hid_cont, c_hid_cont], axis=-1)
-
-        hid2_cont = self.fc2_cont(concatted_cont)
-        hid2_cont = self.fc2_bn_cont(hid2_cont)
-        hid2_cont = self.fc2_drop_cont(hid2_cont)
-
-
-        ### concat both collab and content features
-        concatted_all = tf.concat([hid2_coll, hid2_cont], axis=-1)
-        hid_f1 = self.fc1_tot(concatted_all)
-        hid_f1 = self.fc1_bn_drop(hid_f1)
-        hid_f1 = self.fc1_tot_drop(hid_f1)
-        out = self.out(hid_f1)
-
-        return out
-
-
-class deep_NN(keras.Model):
-
-    def __init__(self, highest_customer_ind, highest_product_ind, encoded_customers, encoded_products, output_bias=None):
-        super().__init__()
-        self.drop_rate = 0.01
-        if output_bias is not None:
-            output_bias = keras.initializers.Constant(output_bias)
-
-        self.encoded_customers = tf.convert_to_tensor(encoded_customers) #encoded_customers
-        self.encoded_products = tf.convert_to_tensor(encoded_products)  #encoded_products
-
-        self.prod_fc1_coll = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn1_coll = keras.layers.BatchNormalization()
-        self.prod_drop1_coll = keras.layers.Dropout(rate=self.drop_rate)
-        self.prod_fc2_coll = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn2_coll = keras.layers.BatchNormalization()
-        self.prod_drop2_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.cust_fc1_coll = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn1_coll = keras.layers.BatchNormalization()
-        self.cust_drop1_coll = keras.layers.Dropout(rate=self.drop_rate)
-        self.cust_fc2_coll = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn2_coll = keras.layers.BatchNormalization()
-        self.cust_drop2_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.fc1_coll = keras.layers.Dense(units=10, activation='relu')
-        self.fc1_bn_coll = keras.layers.BatchNormalization()
-        self.fc1_drop_coll = keras.layers.Dropout(rate=self.drop_rate)
-        self.fc2_coll = keras.layers.Dense(units=10, activation='relu')
-        self.fc2_bn_coll = keras.layers.BatchNormalization()
-        self.fc2_drop_coll = keras.layers.Dropout(rate=self.drop_rate)
-
-
-        ####
-        embedding_dim = 50
-        
-        self.prod_emb = keras.layers.Embedding(highest_product_ind, embedding_dim)
-        self.cust_emb = keras.layers.Embedding(highest_customer_ind, embedding_dim)
-
-        self.prod_fc1_cont = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn1_cont = keras.layers.BatchNormalization()
-        self.prod_drop1_cont = keras.layers.Dropout(rate=self.drop_rate)
-        self.prod_fc2_cont = keras.layers.Dense(units=10, activation='relu')
-        self.prod_bn2_cont = keras.layers.BatchNormalization()
-        self.prod_drop2_cont = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.cust_fc1_cont = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn1_cont = keras.layers.BatchNormalization()
-        self.cust_drop1_cont = keras.layers.Dropout(rate=self.drop_rate)
-        self.cust_fc2_cont = keras.layers.Dense(units=10, activation='relu')
-        self.cust_bn2_cont = keras.layers.BatchNormalization()
-        self.cust_drop2_cont = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.fc1_cont = keras.layers.Dense(units=10, activation='relu')
-        self.fc1_bn_cont = keras.layers.BatchNormalization()
-        self.fc1_drop_cont= keras.layers.Dropout(rate=self.drop_rate)
-        self.fc2_cont = keras.layers.Dense(units=10, activation='relu')
-        self.fc2_bn_cont = keras.layers.BatchNormalization()
-        self.fc2_drop_cont= keras.layers.Dropout(rate=self.drop_rate)
-
-        ###
-
-        self.fc1_tot = keras.layers.Dense(units=10, activation='relu')
-        self.fc1_bn_drop = keras.layers.BatchNormalization()
-        self.fc1_tot_drop = keras.layers.Dropout(rate=self.drop_rate)
-        self.fc2_tot = keras.layers.Dense(units=10, activation='relu')
-        self.fc2_bn_drop = keras.layers.BatchNormalization()
-        self.fc2_tot_drop = keras.layers.Dropout(rate=self.drop_rate)
-
-        self.out = keras.layers.Dense(units=1, activation='sigmoid', bias_initializer=output_bias)
-
-
-    def call(self, X):
-        product_id = X[:, 0]
-        customer_id = X[:, 1]
-
-        ### collaborative
-        product_vec_coll = self.prod_emb(product_id)
-        customer_vec_coll = self.cust_emb(customer_id)
-        
-        p_hid_coll1 = self.prod_fc1_coll(product_vec_coll)
-        p_hid_coll1 = self.prod_bn1_coll(p_hid_coll1)
-        p_hid_coll1 = self.prod_drop1_coll(p_hid_coll1)
-        p_hid_coll2 = self.prod_fc2_coll(p_hid_coll1)
-        p_hid_coll2 = self.prod_bn2_coll(p_hid_coll2)
-        p_hid_coll2 = self.prod_drop2_coll(p_hid_coll2)
-
-        c_hid_coll1 = self.cust_fc1_coll(customer_vec_coll)
-        c_hid_coll1 = self.cust_bn1_coll(c_hid_coll1)
-        c_hid_coll1 = self.cust_drop1_coll(c_hid_coll1)
-        c_hid_coll2 = self.cust_fc2_coll(c_hid_coll1)
-        c_hid_coll2 = self.cust_bn2_coll(c_hid_coll2)
-        c_hid_coll2 = self.cust_drop2_coll(c_hid_coll2)
-
-        concatted_coll = tf.concat([p_hid_coll2, c_hid_coll2], axis=-1)
-
-        hid2_coll1 = self.fc1_coll(concatted_coll)
-        hid2_coll1 = self.fc1_bn_coll(hid2_coll1)
-        hid2_coll1 = self.fc1_drop_coll(hid2_coll1)
-        hid2_coll2 = self.fc2_coll(hid2_coll1)
-        hid2_coll2 = self.fc2_bn_coll(hid2_coll2)
-        hid2_coll2 = self.fc2_drop_coll(hid2_coll2)
-
-        ### content
-
-        product_vec_cont = tf.nn.embedding_lookup(
-            params=self.encoded_products,
-            ids=product_id,
-        )
-        customer_vec_cont = tf.nn.embedding_lookup(
-            params=self.encoded_customers,
-            ids=customer_id,
-        )
-
-        p_hid_cont1 = self.prod_fc1_cont(product_vec_cont)
-        p_hid_cont1 = self.prod_bn1_cont(p_hid_cont1)
-        p_hid_cont1 = self.prod_drop1_cont(p_hid_cont1)
-        p_hid_cont2 = self.prod_fc2_cont(p_hid_cont1)
-        p_hid_cont2 = self.prod_bn2_cont(p_hid_cont2)
-        p_hid_cont2 = self.prod_drop2_cont(p_hid_cont2)
-
-        c_hid_cont1 = self.cust_fc1_cont(customer_vec_cont)
-        c_hid_cont1 = self.cust_bn1_cont(c_hid_cont1)
-        c_hid_cont1 = self.cust_drop1_cont(c_hid_cont1)
-        c_hid_cont2 = self.cust_fc2_cont(c_hid_cont1)
-        c_hid_cont2 = self.cust_bn2_cont(c_hid_cont2)
-        c_hid_cont2 = self.cust_drop2_cont(c_hid_cont2)
-
-        concatted_cont = tf.concat([p_hid_cont2, c_hid_cont2], axis=-1)
-
-        hid2_cont1 = self.fc1_cont(concatted_cont)
-        hid2_cont1 = self.fc1_bn_cont(hid2_cont1)
-        hid2_cont1 = self.fc1_drop_cont(hid2_cont1)
-        hid2_cont2 = self.fc2_cont(hid2_cont1)
-        hid2_cont2 = self.fc2_bn_cont(hid2_cont2)
-        hid2_cont2 = self.fc2_drop_cont(hid2_cont2)
-
-        ###
-
-        concatted_all = tf.concat([hid2_cont2, hid2_coll2], axis=-1)
-
-        hid_f1 = self.fc1_tot(concatted_all)
-        hid_f1 = self.fc1_bn_drop(hid_f1)
-        hid_f1 = self.fc1_tot_drop(hid_f1)
-        hid_f2 = self.fc2_tot(hid_f1)
-        hid_f2 = self.fc2_bn_drop(hid_f2)
-        hid_f2 = self.fc2_tot_drop(hid_f2)
-
-        out = self.out(hid_f2)
-
-        return out
-
-
 import pandas as pd
-
 import os, sys
+from typing import Tuple, Dict
+import gzip, pickle
 
 CDIR = os.path.dirname(os.path.abspath(__file__))
 PPDIR = os.path.dirname(os.path.dirname(CDIR))
@@ -280,96 +17,281 @@ from models.content_based_filtering import product_vector_similarity, customer_v
 from misc import constants
 from models import common_funcs
 from processing import split_data, data_loading
+from models.hybrid.nn.misc import lr_plotter
+from models.hybrid.nn.nn_models import simple_NN_no_views, deep_NN_no_views
+
+################################################################################
+# constants
+PLOT_LR = False # set to True to plot lr graph
+DEFAULT_LR = 0.03 # NOTE: I found this from doing the lr_plotter 
+DEFAULT_BATCH_SIZE = 50_000
+DEFAULT_BALANCE_DATASET = False
+DEFAULT_CLASS_WEIGHTING = 0.5
+DEFAULT_SHUFFLE_FRAC = 0.3 # NOTE: didn't spend much time thinking about this, 
+# probably because of oversampling want this to be larger
+DEFAULT_PREFETCH = 2
+
+NN_PLOT_DIR = os.path.join(CDIR, "nn_plots")
+
 ################################################################################
 
-PLOT_LR = False # set to True to plot lr graph
+def plot_metrics_and_loss_learning(
+    history: keras.callbacks.History, model_name_str: str
+) -> None:
+    """just plotting losses and metrics stored in history object"""
 
+    plt.plot(history.history['loss'], label='train')
+    plt.plot(history.history['val_loss'], label='val')
+    plt.legend()
+    save_path = os.path.join(NN_PLOT_DIR, f"{model_name_str}_loss.png")
+    plt.savefig(save_path)
+    plt.close()
 
-def lr_plotter(model, x_small, y_small, epochs=12):
-    lr_schedule = tf.keras.callbacks.LearningRateScheduler(lambda epoch: 1e-4 * 10**(epoch/2))
-    opt = keras.optimizers.Adam(learning_rate=0.1)
-    model.compile(loss="binary_crossentropy", optimizer=opt)
-    history = model.fit(x=x_small, y=y_small,
-                epochs=epochs,
-                callbacks=[lr_schedule]
-    )
-    plt.semilogx(history.history['lr'], history.history['loss'])
-    plt.savefig('lr_plot.png')
+    plt.plot(history.history['accuracy'], label='train')
+    plt.plot(history.history['val_accuracy'], label='val')
+    plt.legend()
+    save_path = os.path.join(NN_PLOT_DIR, f"{model_name_str}_acc.png")
+    plt.savefigsave_path)
+    plt.close()
+
+    plt.plot(history.history['auc'], label='train')
+    plt.plot(history.history['val_auc'], label='val')
+    plt.legend()
+    save_path = os.path.join(NN_PLOT_DIR, f"{model_name_str}_auc.png")
+    plt.savefig(save_path)
+    plt.close()
+
+    plt.plot(history.history['precision'], label='train')
+    plt.plot(history.history['val_precision'], label='val')
+    plt.legend()
+    save_path = os.path.join(NN_PLOT_DIR, f"{model_name_str}_pred.png")
+    plt.savefig(save_path)
+    plt.close()
+
+    plt.plot(history.history['recall'], label='train')
+    plt.plot(history.history['val_recall'], label='val')
+    plt.legend()
+    save_path = os.path.join(NN_PLOT_DIR, f"{model_name_str}_recall.png")
+    plt.savefig(save_path)
     plt.close()
 
 
-def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.ndarray:
-    physical_devices = tf.config.list_physical_devices('GPU')[1:]
-    tf.config.experimental.set_visible_devices(physical_devices[0], 'GPU')
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
-    #tf.config.experimental.set_memory_growth(physical_devices[1], True)
+def get_default_bias(train_df: pd.DataFrame) -> float:
+    """the bias to set on the final nn layer - according to the bias in the 
+    class labels"""
+    # set the bias manually to speed up learning
+    n_pos = len(train_df[train_df.loc[:, constants.purchased_label_str]])
+    n_neg = len(train_df[~train_df.loc[:, constants.purchased_label_str]])
+    b0 = np.log([n_pos/n_neg])
+    return b0
 
+
+def construct_train_dataset(
+    balance_dataset: bool, train_df: pd.DataFrame, val_df: pd.DataFrame, 
+    pos_weight: float = DEFAULT_CLASS_WEIGHTING, 
+    neg_weight: float = DEFAULT_CLASS_WEIGHTING,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    shuffle_frac: float = DEFAULT_SHUFFLE_FRAC,
+    prefetch_n: int = DEFAULT_PREFETCH
+) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
+    """construct the trianing dataset for features and labels. if balancing, 
+    then do so by oversampling the rarer class - i.e. by making the class 
+    balance according to the positive and negative labels.
+    Args:
+        balance_dataset: bool to decide whether to balance the dataset or not
+        train_df: df to train on 
+        val_df: df for early stopping
+        pos_weight: positive class weight [0-1], pos_weight+neg_weight must = 1
+        neg_weight: negative class weight [0-1], pos_weight+neg_weight must = 1
+        batch_size: batch size for training
+        shuffle_frac: what proportion of the dataset size should be set as 
+            shuffle buffer
+        prefetch_n: how many batches to prefetch when training
+    Returns:
+        train_dataset, val_dataset: tf datasets for train and val set - ready
+            to be used in .fit method
+    """
+    # NOTE: we have an imbalanced dataset, rather than use class-weights, I'll use oversampling, as this will be a smoother evolution (more positive samples in each batch rather than one heavily weighted sample)
+
+    if pos_weight + neg_weight != 1:
+        raise constants.IncorrectWeightError(
+            "the positive and negative class weights must add to 1"
+        )
+
+    if balance_dataset:
+        pos_train_dataset = tf.data.Dataset.from_tensor_slices(
+            (
+                train_df[train_df.purchased][
+                    [constants.product_id_str, constants.customer_id_str]
+                ].values, 
+                train_df[train_df.purchased].purchased.values
+            )
+        )
+        neg_train_dataset = tf.data.Dataset.from_tensor_slices(
+            (
+                train_df[~train_df.purchased][
+                    [constants.product_id_str, constants.customer_id_str]
+                ].values, 
+                train_df[~train_df.purchased].purchased.values
+            )
+        )
+        pos_val_dataset = tf.data.Dataset.from_tensor_slices(
+            (
+                val_df[val_df.purchased][
+                    [constants.product_id_str, constants.customer_id_str]
+                ].values, 
+                val_df[val_df.purchased].purchased.values
+            )
+        )
+        neg_val_dataset = tf.data.Dataset.from_tensor_slices(
+            (
+                val_df[~val_df.purchased][
+                    [constants.product_id_str, constants.customer_id_str]
+                ].values, 
+                val_df[~val_df.purchased].purchased.values
+            )
+        )
+
+        resampled_train_dataset = tf.data.experimental.sample_from_datasets(
+            [pos_train_dataset, neg_train_dataset], 
+            weights=[pos_weight, neg_weight]
+        )
+        resampled_val_dataset = tf.data.experimental.sample_from_datasets(
+            [pos_val_dataset, neg_val_dataset], 
+            weights=[pos_weight, neg_weight]
+        )
+    else:
+        resampled_train_dataset = tf.data.Dataset.from_tensor_slices(
+            (
+                train_df[
+                    [constants.product_id_str, constants.customer_id_str]
+                ].values, 
+                train_df.purchased.values
+            )
+        )
+        resampled_val_dataset = tf.data.Dataset.from_tensor_slices(
+            (
+                val_df[
+                    [constants.product_id_str, constants.customer_id_str]
+                ].values, 
+                val_df.purchased.values
+            )
+        )
+
+    train_dataset = resampled_train_dataset.shuffle(
+            int(len(train_df) * shuffle_frac) # shuffle buffer size
+        ).batch(batch_size).prefetch(prefetch_n) 
+    val_dataset = resampled_val_dataset.shuffle(
+            int(len(val_df) * shuffle_frac) # shuffle buffer size
+        ).batch(batch_size).prefetch(prefetch_n)
+
+    return train_dataset, val_dataset
+
+
+def train_model(
+    train_df: pd.DataFrame, test_df: pd.DataFrame, 
+    learning_rate: float = DEFAULT_LR,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    balance_dataset: bool = DEFAULT_BALANCE_DATASET,
+    pos_weight: float = DEFAULT_CLASS_WEIGHTING, 
+    neg_weight: float = DEFAULT_CLASS_WEIGHTING,
+) -> Tuple[keras.Model, keras.callbacks.History]:
+    """train the model on train_df, return the model and history object
+    Args:
+        learning_rate: learning rate for fitting
+        balance_dataset: bool to decide whether to balance the dataset or not
+        train_df: df to train on 
+        val_df: df for early stopping
+        pos_weight: positive class weight [0-1], pos_weight+neg_weight must = 1
+        neg_weight: negative class weight [0-1], pos_weight+neg_weight must = 1
+        batch_size: batch size for training
+    Returns:
+        model: trained keras model
+        history: history object from training
+    """
+    # get encoded matrices for customers and products, as well as lookup dicts 
+    # so we can index rows properly
     row_lookup_customers, encoded_customers = customer_vector_similarity.encode_customer()
     row_lookup_products, encoded_products = product_vector_similarity.encode_products()
 
-    train_df = train_df[(train_df.customerId.isin(row_lookup_customers.keys())) & (train_df.productId.isin(row_lookup_products.keys()))]
-    test_df = test_df[(test_df.customerId.isin(row_lookup_customers.keys())) & (test_df.productId.isin(row_lookup_products.keys()))]
+    # make sure train and test only contain customers and products that are 
+    # encoded
+    train_df = train_df[
+        (
+            train_df[constants.customer_id_str].\
+                isin(row_lookup_customers.keys())
+        ) & (
+            train_df[constants.product_id_str].\
+                isin(row_lookup_products.keys())
+        )
+    ]
+    test_df = test_df[
+        (
+            test_df[constants.customer_id_str].\
+                isin(row_lookup_customers.keys())
+        ) & (
+            test_df[constants.product_id_str].\
+                isin(row_lookup_products.keys())
+        )
+    ]
+    
+    # map the ids to the indices in the encoded matrixes
+    train_df.loc[:, constants.customer_id_str] = train_df[
+        constants.customer_id_str].map(row_lookup_customers) # now the ids are 
+    # the row indexes of the encoder matrix
+    train_df.loc[:, constants.product_id_str] = train_df[
+        constants.product_id_str].map(row_lookup_products)
 
-    train_df.loc[:, "customerId"] = train_df.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix
-    train_df.loc[:, "productId"] = train_df.productId.map(row_lookup_products)
+    # for the embeddings, set the max indices
+    max_prod_ind = max(train_df[constants.product_id_str].max(), test_df[constants.product_id_str].max())
+    max_cust_ind = max(train_df[constants.customer_id_str].max(), test_df[constants.customer_id_str].max())
 
-    max_prod_ind = max(train_df.productId.max(), test_df.productId.max())
-    max_cust_ind = max(train_df.customerId.max(), test_df.customerId.max())
-
+    # form a validation set for early stopping
     train_df = train_df.iloc[:int(len(train_df) * 0.8)]
     val_df = train_df.iloc[int(len(train_df) * 0.8):]
 
-    # bool_train_labels = train_df.purchased
+    # construct the datasets, 
+    train_dataset, val_dataset = construct_train_dataset(
+        balance_dataset=balance_dataset, 
+        train_df=train_df, val_df=val_df, 
+        pos_weight=pos_weight, neg_weight=neg_weight,
+        batch_size=batch_size,
+    )
 
-    # NOTE: we have an imbalanced dataset, rather than use class-weights, I'll use oversampling, as this will be a smoother evolution (more positive samples in each batch rather than one heavily weighted sample)
-    balance = False
-    if balance:
-        pos_train_dataset = tf.data.Dataset.from_tensor_slices((train_df[train_df.purchased][["productId", "customerId"]].values, train_df[train_df.purchased].purchased.values))
-        neg_train_dataset = tf.data.Dataset.from_tensor_slices((train_df[~train_df.purchased][["productId", "customerId"]].values, train_df[~train_df.purchased].purchased.values))
-        pos_val_dataset = tf.data.Dataset.from_tensor_slices((val_df[val_df.purchased][["productId", "customerId"]].values, val_df[val_df.purchased].purchased.values))
-        neg_val_dataset = tf.data.Dataset.from_tensor_slices((val_df[~val_df.purchased][["productId", "customerId"]].values, val_df[~val_df.purchased].purchased.values))
-
-        resampled_train_dataset = tf.data.experimental.sample_from_datasets([pos_train_dataset, neg_train_dataset], weights=[0.5, 0.5])
-        resampled_val_dataset = tf.data.experimental.sample_from_datasets([pos_val_dataset, neg_val_dataset], weights=[0.5, 0.5])
-
-    else:
-        resampled_train_dataset = tf.data.Dataset.from_tensor_slices((train_df[["productId", "customerId"]].values, train_df.purchased.values)) # TODO: make dataset for +ve and -ve, combine them with weightings
-        resampled_val_dataset = tf.data.Dataset.from_tensor_slices((val_df[["productId", "customerId"]].values, val_df.purchased.values))
-
-    BATCH_SIZE = 50_000
-    train_dataset = resampled_train_dataset.shuffle(len(train_df) // 3).batch(BATCH_SIZE).prefetch(2) # NOTE: didn't spend much time thinking about this, probably because of oversampling want this to be larger
-    val_dataset = resampled_val_dataset.shuffle(len(val_df) // 3).batch(BATCH_SIZE).prefetch(2)
-
-    # set the bias manually
-    n_pos = len(train_df[train_df.purchased])
-    n_neg = len(train_df[~train_df.purchased])
-    b0 = np.log([n_pos/n_neg])
-
-    model = simple_NN( # deep_NN
+    # init model
+    model = simple_NN_no_views(
         highest_customer_ind=max_cust_ind, 
         highest_product_ind=max_prod_ind, 
         encoded_customers=encoded_customers.todense(), 
         encoded_products=encoded_products.todense(), 
-        output_bias=b0
+        output_bias=get_default_bias(train_df=train_df)
     )
+
     early_stopping = keras.callbacks.EarlyStopping(
-        #monitor="val_loss", 
-        monitor='val_auc', mode='max',
+        monitor='val_auc', 
+        mode='max',
         patience=4,
-         #mode="min"
         restore_best_weights=True,
     )
     
-
-    if PLOT_LR:
+    if PLOT_LR: # plot lr graph
         x_small = list(train_dataset.as_numpy_iterator())[0][0][:1000]
         y_small = list(train_dataset.as_numpy_iterator())[0][1][:1000]
         lr_plotter(model, x_small, y_small)
-    learning_rate = 0.03 # NOTE: I found this from doing the lr_plotter above
 
+    model.compile(
+        loss='binary_crossentropy', 
+        optimizer=keras.optimizers.Adam(learning_rate=learning_rate), 
+        metrics=[
+            'accuracy', 
+            keras.metrics.Precision(), 
+            keras.metrics.Recall(), 
+            keras.metrics.AUC(), 
+            keras.metrics.BinaryAccuracy()
+        ]
+    )
 
-    model.compile(loss='binary_crossentropy', optimizer=keras.optimizers.Adam(learning_rate=learning_rate), metrics=['accuracy', keras.metrics.Precision(), keras.metrics.Recall(), keras.metrics.AUC(), keras.metrics.BinaryAccuracy()])
-
+    # fit the model
     history = model.fit(
         train_dataset, 
         validation_data=val_dataset,
@@ -377,118 +299,147 @@ def get_hybrid_nn_probs(train_df: pd.DataFrame, test_df: pd.DataFrame) -> np.nda
         callbacks=[early_stopping],
         shuffle=True,
     )
-    
-    model_name = "hybrid_nn_simple_unbalanced"
 
-    
-    def plot_all(history, model_name):
-        plt.plot(history.history['loss'], label='train')
-        plt.plot(history.history['val_loss'], label='val')
-        plt.legend()
-        plt.savefig(f"{model_name}_loss.png")
-        plt.close()
+    return model, history, row_lookup_customers, row_lookup_products 
 
-        plt.plot(history.history['accuracy'], label='train')
-        plt.plot(history.history['val_accuracy'], label='val')
-        plt.legend()
-        plt.savefig(f"{model_name}_acc.png")
-        plt.close()
 
-        plt.plot(history.history['auc'], label='train')
-        plt.plot(history.history['val_auc'], label='val')
-        plt.legend()
-        plt.savefig(f"{model_name}_auc.png")
-        plt.close()
-
-        plt.plot(history.history['precision'], label='train')
-        plt.plot(history.history['val_precision'], label='val')
-        plt.legend()
-        plt.savefig(f"{model_name}_pred.png")
-        plt.close()
-
-        plt.plot(history.history['recall'], label='train')
-        plt.plot(history.history['val_recall'], label='val')
-        plt.legend()
-        plt.savefig(f"{model_name}_recall.png")
-        plt.close()
-
-    plot_all(history, model_name)
+def make_model_preds(
+    test_df: pd.DataFrame, 
+    model: keras.Model,
+    row_lookup_customers: Dict,
+    row_lookup_products: Dict,
+    batch_size: int = DEFAULT_BATCH_SIZE
+) -> np.ndarray:
+    """construct dataset from test_df and used the passed model to make 
+    predictions"""
 
     test_df_mapped = test_df.copy() 
-    test_df_mapped.loc[:, "customerId"] = test_df_mapped.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
-    test_df_mapped.loc[:, "productId"] = test_df_mapped.productId.map(row_lookup_products)
-    test_dataset = tf.data.Dataset.from_tensor_slices((test_df_mapped[["productId", "customerId"]].values, test_df_mapped.purchased.values))
-    test_dataset = test_dataset.batch(BATCH_SIZE) # no shuffle!
+    test_df_mapped.loc[:, constants.customer_id_str] = \
+        test_df_mapped[constants.customer_id_str].map(row_lookup_customers) # 
+    # now the ids are the row indexes of the encoder matrix 
+    # NOTE: missing customers will go!?
+    
+    test_df_mapped.loc[:, constants.product_id_str] = \
+        test_df_mapped[constants.product_id_str].map(row_lookup_products)
+    test_dataset = tf.data.Dataset.from_tensor_slices(
+        (
+            test_df_mapped[
+                [constants.product_id_str, constants.customer_id_str]
+            ].values, 
+            test_df_mapped.purchased.values
+        )
+    )
+    test_dataset = test_dataset.batch(batch_size) # no shuffle!
     predictions = model.predict(test_dataset)
-    import ipdb;ipdb.set_trace()
-    test_df['purchased'] = predictions # NOTE: same name column as labels
 
-    ###
-    from processing import split_data, data_loading
-    import gzip, pickle
+    return predictions
 
 
-    train, val, test_set_df = split_data.get_split_labels_training_df()
+def predict_and_save_holdout_sets(
+    row_lookup_customers: Dict, row_lookup_products: Dict, 
+    trained_model: keras.Model, 
+    batch_size: int = DEFAULT_BATCH_SIZE
+) -> None:
+    train, val, holdout_test_set_df = split_data.get_split_labels_training_df()
 
-    test_set_df = test_set_df[(test_set_df.customerId.isin(row_lookup_customers.keys())) & (test_set_df.productId.isin(row_lookup_products.keys()))]
+    holdout_test_set_df = holdout_test_set_df[
+        (
+            holdout_test_set_df[constants.customer_id_str].isin(row_lookup_customers.keys())
+        ) & (
+            holdout_test_set_df[constants.product_id_str].isin(row_lookup_products.keys())
+        )
+    ]
 
-    test_set_df_mapped = test_set_df.copy() 
-    test_set_df_mapped.loc[:, "customerId"] = test_set_df_mapped.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
-    test_set_df_mapped.loc[:, "productId"] = test_set_df_mapped.productId.map(row_lookup_products)
+    holdout_test_predictions = make_model_preds(
+        test_df=holdout_test_set_df, 
+        model=trained_model,
+        row_lookup_customers=row_lookup_customers,
+        row_lookup_products=row_lookup_products,
+        batch_size=batch_size,
+    )
+    holdout_test_set_df['purchased'] = holdout_test_predictions
+    holout_set_save_path = os.path.join(constants.PREDICTIONS_PATH, 'nnv1_test_set.gzip')
+    with gzip.open(holout_set_save_path, 'wb') as f:
+        pickle.dump(holdout_test_set_df, f, protocol=4)
+
+
+    overall_holdout_set = data_loading.get_labels_predict_df()
+
+    overall_holdout_set = overall_holdout_set[
+        (
+            overall_holdout_set[constants.customer_id_str].isin(row_lookup_customers.keys())
+        ) & (
+            overall_holdout_set[constants.product_id_str].isin(row_lookup_products.keys())
+        )
+    ]
+
+    overall_holdout_set_predictions = make_model_preds(
+        test_df=overall_holdout_set, 
+        model=trained_model,
+        row_lookup_customers=row_lookup_customers,
+        row_lookup_products=row_lookup_products,
+        batch_size=batch_size,
+    )
+    overall_holdout_set['purchase_probability'] = overall_holdout_set_predictions
     
-    #test_set_df_mapped.dropna(inplace=True)
-    #test_set_df_mapped.loc[:, 'customerId'] = test_set_df_mapped.customerId.astype(int)
-    #test_set_df_mapped.loc[:, 'productId'] = test_set_df_mapped.productId.astype(int)
-
-    test_set_dataset = tf.data.Dataset.from_tensor_slices((test_set_df_mapped[["productId", "customerId"]].values, test_set_df_mapped.purchased.values))
-    test_set_dataset = test_set_dataset.batch(BATCH_SIZE) # no shuffle!
-    predictions = model.predict(test_set_dataset)
-
-
-    #inv_map_cust = {v: k for k, v in row_lookup_customers.items()}
-    #inv_map_prod = {v: k for k, v in row_lookup_products.items()}
-    #test_set_df_mapped.loc[:, "customerId"] = test_set_df_mapped.customerId.map(inv_map_cust) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
-    #test_set_df_mapped.loc[:, "productId"] = test_set_df_mapped.productId.map(inv_map_prod)
-
-    test_set_df_mapped['purchased'] = predictions
-    with gzip.open('nnv1_test_set.gzip', 'wb') as f: pickle.dump(test_set_df_mapped, f, protocol=4)
-
-
-
-    holdout_set = data_loading.get_labels_predict_df()
-
-    holdout_set = holdout_set[(holdout_set.customerId.isin(row_lookup_customers.keys())) & (holdout_set.productId.isin(row_lookup_products.keys()))]
-
-
-    holdout_set_df_mapped = holdout_set.copy() 
-    holdout_set_df_mapped.loc[:, "customerId"] = holdout_set_df_mapped.customerId.map(row_lookup_customers) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
-    holdout_set_df_mapped.loc[:, "productId"] = holdout_set_df_mapped.productId.map(row_lookup_products)
-
-    holdout_set_df_mapped.loc[:, "purchase_probability"] = 0
-
-    #holdout_set_df_mapped.dropna(inplace=True)
-    #holdout_set_df_mapped.loc[:, 'customerId'] = holdout_set_df_mapped.customerId.astype(int)
-    #holdout_set_df_mapped.loc[:, 'productId'] = holdout_set_df_mapped.productId.astype(int)
-
-    holdout_set_dataset = tf.data.Dataset.from_tensor_slices((holdout_set_df_mapped[["productId", "customerId"]].values, holdout_set_df_mapped.purchase_probability.values))
-    holdout_set_dataset = holdout_set_dataset.batch(BATCH_SIZE) # no shuffle!
-    predictions = model.predict(holdout_set_dataset)
-    
-    #inv_map_cust = {v: k for k, v in row_lookup_customers.items()}
-    #inv_map_prod = {v: k for k, v in row_lookup_products.items()}
-    #holdout_set_df_mapped.loc[:, "customerId"] = holdout_set_df_mapped.customerId.map(inv_map_cust) # now the ids are the row indexes of the encoder matrix #NOTE: missing customers will go!?
-    #holdout_set_df_mapped.loc[:, "productId"] = holdout_set_df_mapped.productId.map(inv_map_prod)
-
-    holdout_set['purchase_probability'] = predictions
-    with gzip.open('nnv1_holdout_set.gzip', 'wb') as f: pickle.dump(holdout_set, f, protocol=4)
+    holout_set_save_path = os.path.join(constants.PREDICTIONS_PATH, 'nnv1_holdout_set.gzip')
+    with gzip.open(holout_set_save_path, 'wb') as f:
+        pickle.dump(overall_holdout_set, f, protocol=4)
     # NOTE missing about 4k preds
 
-    plot_all(history, model_name)
+################################################################################
 
+def get_hybrid_nn_probs(
+    train_df: pd.DataFrame, test_df: pd.DataFrame,
+    model_name_str: str,
+    learning_rate: float = DEFAULT_LR,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    balance_dataset: bool = DEFAULT_BALANCE_DATASET,
+    pos_weight: float = DEFAULT_CLASS_WEIGHTING, 
+    neg_weight: float = DEFAULT_CLASS_WEIGHTING,
+    predict_holdout_sets: bool = True,
+) -> pd.DataFrame:
 
+    # setup devices. only using 1 gpu, edit for more or for none.
+    physical_devices = tf.config.list_physical_devices('GPU')[:1]
+    tf.config.experimental.set_visible_devices(physical_devices[0], 'GPU')
+    for device in physical_devices:
+        tf.config.experimental.set_memory_growth(device, True)
 
+    # get trained model and history
+    trained_model, history, row_lookup_customers, row_lookup_products = train_model(
+        train_df=train_df, test_df=test_df, 
+        learning_rate=learning_rate,
+        batch_size=batch_size,
+        balance_dataset=balance_dataset,
+        pos_weight=pos_weight, 
+        neg_weight=neg_weight,
+    )
+
+    # plot everything
+    plot_metrics_and_loss_learning(
+        history=history, model_name_str=model_name_str
+    )
+
+    # make predicitons on test set
+    predictions = make_model_preds(
+        test_df=test_df, model=trained_model,
+        row_lookup_customers=row_lookup_customers,
+        row_lookup_products=row_lookup_products,
+        batch_size=batch_size,
+    )
+
+    test_df.loc[:, constants.probabilities_str] = predictions # NOTE: same name column as labels
+    
+    if predict_holdout_sets:
+        predict_and_save_holdout_sets(
+            row_lookup_customers=row_lookup_customers, 
+            row_lookup_products=row_lookup_products, 
+            trained_model=trained_model, 
+            batch_size=batch_size,
+        )
+        
     return test_df
-
 
 ################################################################################
 
@@ -496,14 +447,26 @@ def main():
     model_name = "hybrid_nn_simple_unbalanced"
     dataset_being_evaluated = "val"
 
-    predictions = common_funcs.generate_and_cache_preds(model_name=model_name, model_fetching_func=get_hybrid_nn_probs, dataset_being_evaluated=dataset_being_evaluated)
+    predictions = common_funcs.generate_and_cache_preds(
+        model_name=model_name, 
+        model_fetching_func=get_hybrid_nn_probs, 
+        dataset_being_evaluated=dataset_being_evaluated,
+        model_name_str=model_name,
+    )
     labels = common_funcs.get_labels(dataset_to_fetch=dataset_being_evaluated)
-    scores = common_funcs.get_scores(predictions, labels, model_name=model_name, dataset_being_evaluated=dataset_being_evaluated)
     
-    if dataset_being_evaluated == "val":
-        common_funcs.add_scores_to_master_dict(scores, model_name=model_name, model_dict_path=constants.VAL_SCORES_DICT)
-    elif dataset_being_evaluated == "test":
-        common_funcs.add_scores_to_master_dict(scores, model_name=model_name, model_dict_path=constants.TEST_SCORES_DICT)
+    scores_dict = common_funcs.get_scores(
+        predictions=predictions, 
+        labels=labels, 
+        model_name=model_name, 
+        dataset_being_evaluated=dataset_being_evaluated
+    )
+    
+    common_funcs.cache_scores_to_master_dict(
+        dataset_being_evaluated=dataset_being_evaluated,
+        scores_dict=scores_dict,
+        model_name=model_name
+    )
 
 ################################################################################
 

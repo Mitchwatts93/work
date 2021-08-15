@@ -238,7 +238,8 @@ def train_model(
     early_stopping = keras.callbacks.EarlyStopping(
         monitor='val_auc', 
         mode='max',
-        patience=2,
+        patience=4,
+        restore_best_weights=True,
     )
     
     if PLOT_LR: # plot lr graph
