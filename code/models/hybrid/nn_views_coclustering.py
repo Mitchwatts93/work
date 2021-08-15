@@ -125,34 +125,34 @@ def construct_train_dataset(
     if balance_dataset:
         pos_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                train_df[train_df.purchased][
+                train_df[train_df[constants.purchased_label_str]][
                     [feature_cols]
                 ].values, 
-                train_df[train_df.purchased].purchased.values
+                train_df[train_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
         neg_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                train_df[~train_df.purchased][
+                train_df[~train_df[constants.purchased_label_str]][
                     [feature_cols]
                 ].values, 
-                train_df[~train_df.purchased].purchased.values
+                train_df[~train_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
         pos_val_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                val_df[val_df.purchased][
+                val_df[val_df[constants.purchased_label_str]][
                     [feature_cols]
                 ].values, 
-                val_df[val_df.purchased].purchased.values
+                val_df[val_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
         neg_val_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                val_df[~val_df.purchased][
+                val_df[~val_df[constants.purchased_label_str]][
                     [feature_cols]
                 ].values, 
-                val_df[~val_df.purchased].purchased.values
+                val_df[~val_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
 
@@ -170,7 +170,7 @@ def construct_train_dataset(
                 train_df[
                     [feature_cols]
                 ].values, 
-                train_df.purchased.values
+                train_df[constants.purchased_label_str].values
             )
         )
         resampled_val_dataset = tf.data.Dataset.from_tensor_slices(
@@ -178,7 +178,7 @@ def construct_train_dataset(
                 val_df[
                     [feature_cols]
                 ].values, 
-                val_df.purchased.values
+                val_df[constants.purchased_label_str].values
             )
         )
 
@@ -272,8 +272,8 @@ def train_model(
         with gzip.open(os.path.join(constants.MODEL_FILES_DIR, "cocluster_preds.gzip"), 'rb') as f:
             train_predictions, val_predictions = pickle.load(f)
     except FileNotFoundError:
-        train_data = Dataset.load_from_df(train_df[['customerId', 'productId', 'purchased']], reader=Reader(rating_scale=(0,1)))
-        val_data = Dataset.load_from_df(val_df[['customerId', 'productId', 'purchased']], reader=Reader(rating_scale=(0,1)))
+        train_data = Dataset.load_from_df(train_df[['customerId', 'productId', constants.purchased_label_str]], reader=Reader(rating_scale=(0,1)))
+        val_data = Dataset.load_from_df(val_df[['customerId', 'productId', constants.purchased_label_str]], reader=Reader(rating_scale=(0,1)))
 
         # fit model
         algo = CoClustering()
@@ -375,8 +375,8 @@ def make_model_preds(
         with gzip.open(os.path.join(constants.MODEL_FILES_DIR, f"cocluster_preds_{set_name}.gzip"), 'rb') as f:
             test_predictions = pickle.load(f)
     except FileNotFoundError:
-        train_data = Dataset.load_from_df(train_df[['customerId', 'productId', 'purchased']], reader=Reader(rating_scale=(0,1)))
-        test_data = Dataset.load_from_df(test_df_mapped[['customerId', 'productId', 'purchased']], reader=Reader(rating_scale=(0,1)))
+        train_data = Dataset.load_from_df(train_df[['customerId', 'productId', constants.purchased_label_str]], reader=Reader(rating_scale=(0,1)))
+        test_data = Dataset.load_from_df(test_df_mapped[['customerId', 'productId', constants.purchased_label_str]], reader=Reader(rating_scale=(0,1)))
 
         # fit model
         algo = CoClustering()
@@ -400,7 +400,7 @@ def make_model_preds(
             test_df_mapped[
                 [feature_cols]
             ].values, 
-            test_df_mapped.purchased.values
+            test_df_mapped[constants.purchased_label_str].values
         )
     )
     test_dataset = test_dataset.batch(batch_size) # no shuffle!
@@ -448,7 +448,7 @@ def predict_and_save_holdout_sets(
         batch_size=batch_size,
         set_name="holdout_test",
     )
-    holdout_test_set_df['purchased'] = holdout_test_predictions
+    holdout_test_set_df.loc[:, constants.probabilities_str] = holdout_test_predictions
     holout_set_save_path = os.path.join(constants.PREDICTIONS_PATH, 'nnv2_test_set_cocluster.gzip')
     with gzip.open(holout_set_save_path, 'wb') as f:
         pickle.dump(holdout_test_set_df, f, protocol=4)

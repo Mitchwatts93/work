@@ -123,34 +123,34 @@ def construct_train_dataset(
     if balance_dataset:
         pos_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                train_df[train_df.purchased][
+                train_df[train_df[constants.purchased_label_str]][
                     [feature_cols]
                 ].values, 
-                train_df[train_df.purchased].purchased.values
+                train_df[train_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
         neg_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                train_df[~train_df.purchased][
+                train_df[~train_df[constants.purchased_label_str]][
                     [feature_cols]
                 ].values, 
-                train_df[~train_df.purchased].purchased.values
+                train_df[~train_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
         pos_val_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                val_df[val_df.purchased][
+                val_df[val_df[constants.purchased_label_str]][
                     [feature_cols]
                 ].values, 
-                val_df[val_df.purchased].purchased.values
+                val_df[val_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
         neg_val_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                val_df[~val_df.purchased][
+                val_df[~val_df[constants.purchased_label_str]][
                     [feature_cols]
                 ].values, 
-                val_df[~val_df.purchased].purchased.values
+                val_df[~val_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
 
@@ -168,7 +168,7 @@ def construct_train_dataset(
                 train_df[
                     [feature_cols]
                 ].values, 
-                train_df.purchased.values
+                train_df[constants.purchased_label_str].values
             )
         )
         resampled_val_dataset = tf.data.Dataset.from_tensor_slices(
@@ -176,7 +176,7 @@ def construct_train_dataset(
                 val_df[
                     [feature_cols]
                 ].values, 
-                val_df.purchased.values
+                val_df[constants.purchased_label_str].values
             )
         )
 
@@ -345,7 +345,7 @@ def make_model_preds(
             test_df_mapped[
                 [feature_cols]
             ].values, 
-            test_df_mapped.purchased.values
+            test_df_mapped[constants.purchased_label_str].values
         )
     )
     test_dataset = test_dataset.batch(batch_size) # no shuffle!
@@ -388,7 +388,7 @@ def predict_and_save_holdout_sets(
         row_lookup_products=row_lookup_products,
         batch_size=batch_size,
     )
-    holdout_test_set_df['purchased'] = holdout_test_predictions
+    holdout_test_set_df.loc[:, constants.probabilities_str] = holdout_test_predictions
     holout_set_save_path = os.path.join(constants.PREDICTIONS_PATH, 'nnv2_test_set.gzip')
     with gzip.open(holout_set_save_path, 'wb') as f:
         pickle.dump(holdout_test_set_df, f, protocol=4)

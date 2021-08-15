@@ -122,34 +122,34 @@ def construct_train_dataset(
     if balance_dataset:
         pos_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                train_df[train_df.purchased][
+                train_df[train_df[constants.purchased_label_str]][
                     [constants.product_id_str, constants.customer_id_str]
                 ].values, 
-                train_df[train_df.purchased].purchased.values
+                train_df[train_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
         neg_train_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                train_df[~train_df.purchased][
+                train_df[~train_df[constants.purchased_label_str]][
                     [constants.product_id_str, constants.customer_id_str]
                 ].values, 
-                train_df[~train_df.purchased].purchased.values
+                train_df[~train_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
         pos_val_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                val_df[val_df.purchased][
+                val_df[val_df[constants.purchased_label_str]][
                     [constants.product_id_str, constants.customer_id_str]
                 ].values, 
-                val_df[val_df.purchased].purchased.values
+                val_df[val_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
         neg_val_dataset = tf.data.Dataset.from_tensor_slices(
             (
-                val_df[~val_df.purchased][
+                val_df[~val_df[constants.purchased_label_str]][
                     [constants.product_id_str, constants.customer_id_str]
                 ].values, 
-                val_df[~val_df.purchased].purchased.values
+                val_df[~val_df[constants.purchased_label_str]][constants.purchased_label_str].values
             )
         )
 
@@ -167,7 +167,7 @@ def construct_train_dataset(
                 train_df[
                     [constants.product_id_str, constants.customer_id_str]
                 ].values, 
-                train_df.purchased.values
+                train_df[constants.purchased_label_str].values
             )
         )
         resampled_val_dataset = tf.data.Dataset.from_tensor_slices(
@@ -175,7 +175,7 @@ def construct_train_dataset(
                 val_df[
                     [constants.product_id_str, constants.customer_id_str]
                 ].values, 
-                val_df.purchased.values
+                val_df[constants.purchased_label_str].values
             )
         )
 
@@ -211,7 +211,7 @@ def make_model_preds(
             test_df_mapped[
                 [constants.product_id_str, constants.customer_id_str]
             ].values, 
-            test_df_mapped.purchased.values
+            test_df_mapped[constants.purchased_label_str].values
         )
     )
     test_dataset = test_dataset.batch(batch_size) # no shuffle!
