@@ -155,13 +155,9 @@ def plot_all_preds() -> None:
             # the file is not a prediction file
             continue
 
-        try: # TODO remove this! its because you didn't map back the indices
-            plot_precision_recall_plot(pred_filename, y_true, y_pred)
-            plot_roc(pred_filename, y_true, y_pred)
-        except IndexError:
-            print(f"could not plot eval plots for {pred_filename}") # TODO 
-            # change to logger
-            continue
+        plot_precision_recall_plot(pred_filename, y_true, y_pred)
+        plot_roc(pred_filename, y_true, y_pred)
+
 
         
 ################################################################################
