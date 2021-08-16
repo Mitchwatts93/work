@@ -79,7 +79,7 @@ def get_normalised_popularities(
 
 
     cache_path = os.path.join(
-        constants.RAW_DATA_DIR, 
+        constants.MODEL_FILES_DIR, 
         f"normalised_popularity_{dataset_being_evaluated}.gzip"
     )
     normalised_popularities = load_or_make_wrapper(

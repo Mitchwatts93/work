@@ -103,18 +103,20 @@ prediction_code
 data
     |
     model_files
-        |
+        | # files to speed up training are cached here
     plots
-        |
+        | # files for model evaluation and data exploration are saved here
     predictions
-        |
+        | # predictions for each model are stored here
     raw_data
         | # all the data you sent in original formats also some gzips for train/
         | # val/test split
     scores
-        |
+        | # dictionaries containing metrics for each model are saved here 
+        | # individually, as well as the aggregate scores for all models (these 
+        | # are saved with .json extensions for val and test)
     split_data
-        |
+        | # the split datasets are cached here
 |
 requirements.txt # build venv using pip. i.e. python3 -m venv venv. Then 
                  # activate, then pip install -r requirements.txt
