@@ -1,4 +1,4 @@
-# ASOS purchase prediction task - Mitch Watts
+# example purchase prediction task
 
 ## Problem statement
 Come up with a solution that, given past data, predicts whether a customer will purchase a product after viewing a product one or multiple times.
@@ -122,7 +122,5 @@ requirements.txt # build venv using pip. i.e. python3 -m venv venv. Then
                  # activate, then pip install -r requirements.txt
 
 ### notes
-
-I wanted to code to run from anywhere, so you can see the little 'sys.path.append(PDIR)' in each file, this is just so there are no issues with relative imports.
 
 ### papers
